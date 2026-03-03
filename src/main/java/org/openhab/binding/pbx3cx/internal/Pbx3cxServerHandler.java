@@ -339,6 +339,11 @@ public class Pbx3cxServerHandler extends BaseBridgeHandler {
                     callerName = caller.getName();
                 }
 
+                // Force caller number change by clearing first — ensures rules trigger
+                // even if the same number calls again (e.g. after binding restart or
+                // call end not detected). The "" → "number" transition guarantees a
+                // changed event.
+                updateState(CHANNEL_CALLER_NUMBER, new StringType(""));
                 updateState(CHANNEL_CALLER_NUMBER, new StringType(callerNumber));
                 updateState(CHANNEL_CALLER_NAME, new StringType(callerName));
 
