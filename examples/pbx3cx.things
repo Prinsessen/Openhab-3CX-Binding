@@ -12,7 +12,7 @@ Bridge pbx3cx:server:main "3CX PBX" [
     pollInterval=2,
     presenceInterval=30,
     trunkInterval=60,
-    verifySsl=false,
+    verifySsl=true,
     webhookPort=0,
     recentCallsMax=20,
     recentMissedCallsMax=20

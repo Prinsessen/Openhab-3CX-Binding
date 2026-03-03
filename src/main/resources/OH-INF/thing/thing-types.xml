@@ -79,7 +79,7 @@
 			<parameter name="verifySsl" type="boolean" required="false">
 				<label>Verify SSL</label>
 				<description>Verify SSL certificates (disable for self-signed 3CX certs)</description>
-				<default>false</default>
+				<default>true</default>
 			</parameter>
 			<parameter name="webhookPort" type="integer" required="false">
 				<label>Webhook Port</label>

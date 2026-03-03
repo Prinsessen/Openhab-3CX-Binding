@@ -28,7 +28,7 @@ public class Pbx3cxServerConfiguration {
     public int pollInterval = 2;
     public int presenceInterval = 30;
     public int trunkInterval = 60;
-    public boolean verifySsl = false;
+    public boolean verifySsl = true;
     public int webhookPort = 5002;
     public int recentCallsMax = 10;
     public int recentMissedCallsMax = 10;

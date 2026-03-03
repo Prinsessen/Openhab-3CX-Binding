@@ -96,7 +96,7 @@ The bridge connects to your 3CX PBX server and polls for call activity.
 | `pollInterval`         | Integer | No       | 2       | Active calls polling interval (seconds)                  |
 | `presenceInterval`     | Integer | No       | 30      | Extension presence polling interval (seconds)            |
 | `trunkInterval`        | Integer | No       | 60      | Trunk status polling interval (seconds)                  |
-| `verifySsl`            | Boolean | No       | false   | Verify SSL certificates (disable for self-signed certs)  |
+| `verifySsl`            | Boolean | No       | true    | Verify SSL certificates (set false for self-signed certs) |
 | `webhookPort`          | Integer | No       | 5002    | CRM/CFD webhook listener port (0 = disabled)             |
 | `recentCallsMax`       | Integer | No       | 10      | Maximum number of recent calls to keep in history        |
 | `recentMissedCallsMax` | Integer | No       | 10      | Maximum number of missed calls to keep in history        |
@@ -112,7 +112,7 @@ Bridge pbx3cx:server:main "3CX PBX" [
     pollInterval=2,
     presenceInterval=30,
     trunkInterval=60,
-    verifySsl=false,
+    verifySsl=true,
     webhookPort=0,
     recentCallsMax=20,
     recentMissedCallsMax=20
@@ -587,7 +587,7 @@ NEW CALL → "Routing" (ROUTER)
 
 ### SSL Connection Errors
 
-- Set `verifySsl=false` if your 3CX uses self-signed certificates (default)
+- Set `verifySsl=false` if your 3CX uses self-signed certificates
 
 ### Call History Lost After Restart
 
@@ -607,8 +607,6 @@ NEW CALL → "Routing" (ROUTER)
 **Author:** Nanna Agesen — [Nanna@agesen.dk](mailto:Nanna@agesen.dk)
 **GitHub:** [@Prinsessen](https://github.com/Prinsessen)
 **Company:** [Agesen EL-Teknik](tel:+4598232010) — +45 98 23 20 10
-
-Built with assistance from GitHub Copilot (Claude).
 
 ---
 
