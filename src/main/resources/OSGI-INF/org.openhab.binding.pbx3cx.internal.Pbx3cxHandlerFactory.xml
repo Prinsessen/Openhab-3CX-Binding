@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.3.0"
+	name="org.openhab.binding.pbx3cx.internal.Pbx3cxHandlerFactory" immediate="true"
+	service="org.openhab.core.thing.binding.ThingHandlerFactory">
+
+	<scr:property name="service.pid" value="org.openhab.binding.pbx3cx"/>
+
+	<implementation class="org.openhab.binding.pbx3cx.internal.Pbx3cxHandlerFactory"/>
+
+</scr:component>

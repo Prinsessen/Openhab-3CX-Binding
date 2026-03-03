@@ -1,0 +1,35 @@
+// 3CX PBX Binding — Example Things Configuration
+// Copy to: things/pbx3cx.things
+//
+// Replace hostname, username, and password with your 3CX credentials.
+// The username must be an extension with admin/system_admins privileges.
+
+Bridge pbx3cx:server:main "3CX PBX" [
+    hostname="your-3cx-server.example.com",
+    port=5001,
+    username="600",
+    password="CHANGE-ME",
+    pollInterval=2,
+    presenceInterval=30,
+    trunkInterval=60,
+    verifySsl=false,
+    webhookPort=0,
+    recentCallsMax=20,
+    recentMissedCallsMax=20
+] {
+    // ── Extensions ──────────────────────────────────────────
+    // List your 3CX extensions here, or use auto-discovery.
+    // To discover: Settings → Things → 3CX PBX Server → Scan
+    Thing extension ext200 "200 John Doe"            [ extensionNumber="200" ]
+    Thing extension ext201 "201 Jane Smith"          [ extensionNumber="201" ]
+    Thing extension ext202 "202 Bob Wilson"          [ extensionNumber="202" ]
+    Thing extension ext300 "300 Reception"           [ extensionNumber="300" ]
+
+    // ── Ring Groups ─────────────────────────────────────────
+    Thing ringgroup rg800 "800 Sales"                [ ringGroupNumber="800" ]
+    Thing ringgroup rg801 "801 Support"              [ ringGroupNumber="801" ]
+
+    // ── Queues ──────────────────────────────────────────────
+    Thing queue q900 "900 Main Queue"                [ queueNumber="900" ]
+    Thing queue q901 "901 VIP Queue"                 [ queueNumber="901" ]
+}

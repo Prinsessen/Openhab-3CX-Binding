@@ -1,0 +1,30 @@
+sitemap pbx3cx label="3CX PBX" {
+    Frame label="Phone System" {
+        // Live Dashboard (recommended — shows everything in one view)
+        Webview url="/static/3cx_dashboard.html" height=22
+    }
+
+    Frame label="Call Status" {
+        Text    item=PBX_Call_State
+        Text    item=PBX_Caller_Number
+        Text    item=PBX_Caller_Name
+        Text    item=PBX_Called_Number
+        Text    item=PBX_Call_Direction
+        Text    item=PBX_Call_Duration
+        Text    item=PBX_Call_Agent
+        Text    item=PBX_Call_Timestamp
+    }
+
+    Frame label="Statistics" {
+        Text item=PBX_Active_Calls
+        Text item=PBX_Total_Calls_Today
+        Text item=PBX_Missed_Count_Today
+        Text item=PBX_Last_Missed_Caller
+        Text item=PBX_Last_Missed_Time
+    }
+
+    Frame label="System" {
+        Text item=PBX_System_Status
+        Text item=PBX_Trunk_Status
+    }
+}

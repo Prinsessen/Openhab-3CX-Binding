@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3CX Live Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    padding: 8px;
+    font-size: 14px;
+  }
+  .section { margin-bottom: 12px; }
+  .section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #8892b0;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+    padding-left: 4px;
+  }
+
+  /* Collapsible sections */
+  .collapsible-btn {
+    width: 100%;
+    background: #16213e;
+    color: #8892b0;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    cursor: pointer;
+    text-align: left;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+    transition: background 0.2s;
+  }
+  .collapsible-btn:hover { background: #1a2744; }
+  .collapsible-btn .arrow { transition: transform 0.2s; font-size: 12px; }
+  .collapsible-btn.open .arrow { transform: rotate(180deg); }
+  .collapsible-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+  }
+  .collapsible-content.open { max-height: 4000px; }
+
+  /* Active Calls */
+  .calls-container { display: flex; flex-direction: column; gap: 6px; }
+  .call-card {
+    background: #16213e;
+    border-radius: 8px;
+    padding: 10px 12px;
+    border-left: 4px solid #4ecca3;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .call-card.ringing { border-left-color: #f9a825; animation: pulse 1.5s infinite; }
+  .call-card.routing { border-left-color: #64b5f6; }
+  .call-card.talking { border-left-color: #4ecca3; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+  .call-icon { font-size: 22px; flex-shrink: 0; }
+  .call-info { flex: 1; min-width: 0; }
+  .call-parties {
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .call-parties .arrow { color: #4ecca3; margin: 0 6px; }
+  .call-parties .ext { color: #64b5f6; font-weight: 700; }
+  .call-parties .name { color: #ccd6f6; }
+  .call-meta {
+    font-size: 11px;
+    color: #8892b0;
+    margin-top: 2px;
+    display: flex;
+    gap: 12px;
+  }
+  .call-meta .badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .badge.internal { background: #1b5e20; color: #a5d6a7; }
+  .badge.inbound { background: #0d47a1; color: #90caf9; }
+  .badge.outbound { background: #e65100; color: #ffcc80; }
+  .badge.external { background: #4a148c; color: #ce93d8; }
+  .badge.talking, .badge.Talking { background: #2e7d32; color: #c8e6c9; }
+  .badge.ringing, .badge.Ringing { background: #f57f17; color: #fff9c4; }
+  .badge.routing, .badge.Routing, .badge.Initiating { background: #1565c0; color: #bbdefb; }
+  .call-duration { font-size: 13px; color: #4ecca3; font-weight: 600; flex-shrink: 0; }
+  .no-calls {
+    text-align: center;
+    color: #5a6a8a;
+    padding: 16px;
+    font-size: 13px;
+    background: #16213e;
+    border-radius: 8px;
+  }
+
+  /* Recent Calls Table */
+  .recent-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .recent-table th {
+    background: #16213e;
+    color: #8892b0;
+    padding: 6px 8px;
+    text-align: left;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    position: sticky;
+    top: 0;
+  }
+  .recent-table td {
+    padding: 5px 8px;
+    border-bottom: 1px solid #1e2d4a;
+    white-space: nowrap;
+  }
+  .recent-table tr:hover td { background: #16213e; }
+  .recent-table .missed td { color: #ef5350; }
+  .recent-table .answered td { color: #e0e0e0; }
+
+  /* Extensions Grid */
+  .ext-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 6px;
+  }
+  .ext-card {
+    background: #16213e;
+    border-radius: 6px;
+    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .ext-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .ext-dot.available { background: #4ecca3; }
+  .ext-dot.away { background: #f9a825; }
+  .ext-dot.dnd { background: #ef5350; }
+  .ext-dot.offline { background: #555; }
+  .ext-dot.oncall { background: #4ecca3; animation: pulse 1.5s infinite; box-shadow: 0 0 6px #4ecca3; }
+  .ext-name { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ext-num { color: #64b5f6; font-weight: 700; font-size: 12px; }
+
+  /* Ring Groups & Queues Grid */
+  .rg-grid, .q-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 6px;
+  }
+  .rg-card, .q-card {
+    background: #16213e;
+    border-radius: 8px;
+    padding: 10px 12px;
+    border-left: 4px solid #7c4dff;
+  }
+  .q-card { border-left-color: #00bfa5; }
+  .rg-card .rg-header, .q-card .q-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .rg-card .rg-name, .q-card .q-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #ccd6f6;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .rg-card .rg-num, .q-card .q-num {
+    font-size: 12px;
+    color: #64b5f6;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-right: 6px;
+  }
+  .rg-card .rg-meta, .q-card .q-meta {
+    font-size: 11px;
+    color: #8892b0;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .badge.strategy {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .badge.strategy.hunt { background: #1a237e; color: #9fa8da; }
+  .badge.strategy.ringall { background: #004d40; color: #80cbc4; }
+  .badge.strategy.paging { background: #4a148c; color: #ce93d8; }
+  .badge.strategy.default { background: #37474f; color: #b0bec5; }
+  .badge.waiting {
+    background: #b71c1c;
+    color: #ffcdd2;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 700;
+    animation: pulse 1.5s infinite;
+  }
+  .rg-members, .q-agents {
+    font-size: 11px;
+    color: #8892b0;
+    margin-top: 4px;
+    line-height: 1.5;
+    white-space: normal;
+    word-break: break-word;
+  }
+  .member-count, .agent-count { font-size: 11px; color: #5a6a8a; }
+
+  /* Trunks */
+  .trunk-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    background: #16213e;
+    border-radius: 6px;
+    margin-bottom: 4px;
+    font-size: 13px;
+  }
+  .trunk-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .trunk-dot.online { background: #4ecca3; }
+  .trunk-dot.offline { background: #ef5350; }
+
+  /* Stats bar */
+  .stats-bar {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  .stat {
+    background: #16213e;
+    border-radius: 6px;
+    padding: 6px 12px;
+    text-align: center;
+    flex: 1;
+    min-width: 70px;
+  }
+  .stat-value { font-size: 20px; font-weight: 700; color: #4ecca3; }
+  .stat-label { font-size: 10px; color: #8892b0; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .last-update { text-align: right; font-size: 10px; color: #5a6a8a; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<div class="stats-bar" id="statsBar">
+  <div class="stat"><div class="stat-value" id="activeCalls">-</div><div class="stat-label">Aktive</div></div>
+  <div class="stat"><div class="stat-value" id="totalCalls">-</div><div class="stat-label">Opkald i dag</div></div>
+  <div class="stat"><div class="stat-value" id="missedToday">-</div><div class="stat-label">Ubesvarede</div></div>
+  <div class="stat"><div class="stat-value" id="extOnline">-</div><div class="stat-label">Online</div></div>
+  <div class="stat"><div class="stat-value" id="rgCount">-</div><div class="stat-label">Ringgrupper</div></div>
+  <div class="stat"><div class="stat-value" id="qCount">-</div><div class="stat-label">Køer</div></div>
+</div>
+
+<div class="section">
+  <div class="section-title">Aktive Opkald</div>
+  <div class="calls-container" id="callsList">
+    <div class="no-calls">Ingen aktive opkald</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Seneste Opkald</div>
+  <div id="recentCallsList">
+    <div class="no-calls">Ingen seneste opkald</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Ubesvarede Opkald</div>
+  <div id="missedCallsList">
+    <div class="no-calls">Ingen ubesvarede opkald</div>
+  </div>
+</div>
+
+<div class="section">
+  <button class="collapsible-btn" onclick="toggleSection(this, 'extContent')">
+    Lokalnumre <span class="arrow">▼</span>
+  </button>
+  <div class="collapsible-content" id="extContent">
+    <div class="ext-grid" id="extGrid"></div>
+  </div>
+</div>
+
+<div class="section" id="rgSection" style="display:none">
+  <button class="collapsible-btn" onclick="toggleSection(this, 'rgContent')">
+    Ringgrupper <span class="arrow">▼</span>
+  </button>
+  <div class="collapsible-content" id="rgContent">
+    <div class="rg-grid" id="rgGrid"></div>
+  </div>
+</div>
+
+<div class="section" id="qSection" style="display:none">
+  <button class="collapsible-btn" onclick="toggleSection(this, 'qContent')">
+    Køer <span class="arrow">▼</span>
+  </button>
+  <div class="collapsible-content" id="qContent">
+    <div class="q-grid" id="qGrid"></div>
+  </div>
+</div>
+
+<div class="section" id="trunkSection" style="display:none">
+  <div class="section-title">Trunks</div>
+  <div id="trunkList"></div>
+</div>
+
+<div class="last-update">Opdateret: <span id="lastUpdate">-</span></div>
+
+<script>
+const REST = '/rest/items';
+let EXTENSIONS = [];
+let RING_GROUPS = [];
+let QUEUES = [];
+
+function toggleSection(btn, contentId) {
+  btn.classList.toggle('open');
+  document.getElementById(contentId).classList.toggle('open');
+}
+
+function formatDuration(seconds) {
+  if (!seconds || seconds < 0) return '0:00';
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+function directionBadge(dir) {
+  const labels = {internal:'Intern', inbound:'Ind', outbound:'Ud'};
+  return '<span class="badge ' + (dir || 'external') + '">' + (labels[dir] || dir || '-') + '</span>';
+}
+
+function statusBadge(status) {
+  const s = (status || '').toLowerCase();
+  const labels = {talking:'Aktiv', ringing:'Ringer', routing:'Rute', initiating:'Starter'};
+  return '<span class="badge ' + status + '">' + (labels[s] || status || '-') + '</span>';
+}
+
+function statusIcon(status) {
+  const s = (status || '').toLowerCase();
+  const icons = {talking:'📞', ringing:'🔔', routing:'📡', initiating:'📡'};
+  return icons[s] || '📞';
+}
+
+function statusClass(status) {
+  const s = (status || '').toLowerCase();
+  if (s === 'talking') return 'talking';
+  if (s === 'ringing') return 'ringing';
+  return 'routing';
+}
+
+function strategyBadge(strategy) {
+  const s = (strategy || '').toLowerCase();
+  let cls = 'default';
+  if (s.includes('hunt')) cls = 'hunt';
+  else if (s.includes('ringall') || s.includes('ring all')) cls = 'ringall';
+  else if (s.includes('paging')) cls = 'paging';
+  return '<span class="badge strategy ' + cls + '">' + (strategy || '-') + '</span>';
+}
+
+async function fetchState(item) {
+  try {
+    const r = await fetch(REST + '/' + item + '/state');
+    if (!r.ok) return null;
+    const t = await r.text();
+    return (t === 'NULL' || t === 'UNDEF') ? null : t;
+  } catch(e) { return null; }
+}
+
+// ─── Discovery ─────────────────────────────────────────────
+async function discoverExtensions() {
+  try {
+    const r = await fetch(REST + '/gPBX_Extensions');
+    if (!r.ok) return;
+    const group = await r.json();
+    const members = group.members || [];
+    const extMap = {};
+    for (const item of members) {
+      const m = item.name.match(/^PBX_Ext_(\d+)_Status$/);
+      if (m) {
+        const num = m[1];
+        const label = (item.label || '').replace(/\s*\[.*\]\s*$/, '');
+        const name = label.replace(/^\d+\s*/, '').trim() || num;
+        extMap[num] = name;
+      }
+    }
+    EXTENSIONS = Object.keys(extMap)
+      .sort((a, b) => parseInt(a) - parseInt(b))
+      .map(num => ({num, name: extMap[num]}));
+  } catch(e) { console.error('Extension discovery failed:', e); }
+}
+
+async function discoverRingGroups() {
+  try {
+    const r = await fetch(REST + '/gPBX_RingGroups');
+    if (!r.ok) return;
+    const group = await r.json();
+    const members = group.members || [];
+    const rgMap = {};
+    for (const item of members) {
+      const m = item.name.match(/^PBX_RG_(\d+)_Name$/);
+      if (m) {
+        const num = m[1];
+        const label = (item.label || '').replace(/\s*\[.*\]\s*$/, '');
+        const name = label.replace(/^\d+\s*/, '').trim() || num;
+        rgMap[num] = name;
+      }
+    }
+    RING_GROUPS = Object.keys(rgMap)
+      .sort((a, b) => parseInt(a) - parseInt(b))
+      .map(num => ({num, name: rgMap[num]}));
+    document.getElementById('rgCount').textContent = RING_GROUPS.length;
+    if (RING_GROUPS.length > 0) document.getElementById('rgSection').style.display = '';
+  } catch(e) { console.error('Ring group discovery failed:', e); }
+}
+
+async function discoverQueues() {
+  try {
+    const r = await fetch(REST + '/gPBX_Queues');
+    if (!r.ok) return;
+    const group = await r.json();
+    const members = group.members || [];
+    const qMap = {};
+    for (const item of members) {
+      const m = item.name.match(/^PBX_Q_(\d+)_Name$/);
+      if (m) {
+        const num = m[1];
+        const label = (item.label || '').replace(/\s*\[.*\]\s*$/, '');
+        const name = label.replace(/^\d+\s*/, '').trim() || num;
+        qMap[num] = name;
+      }
+    }
+    QUEUES = Object.keys(qMap)
+      .sort((a, b) => parseInt(a) - parseInt(b))
+      .map(num => ({num, name: qMap[num]}));
+    document.getElementById('qCount').textContent = QUEUES.length;
+    if (QUEUES.length > 0) document.getElementById('qSection').style.display = '';
+  } catch(e) { console.error('Queue discovery failed:', e); }
+}
+
+// ─── Renderers ─────────────────────────────────────────────
+function renderActiveCalls(jsonStr) {
+  const el = document.getElementById('callsList');
+  let calls = [];
+  try { calls = JSON.parse(jsonStr || '[]'); } catch(e) { calls = []; }
+
+  if (!calls.length) {
+    el.innerHTML = '<div class="no-calls">Ingen aktive opkald</div>';
+    document.getElementById('activeCalls').textContent = '0';
+    return;
+  }
+
+  document.getElementById('activeCalls').textContent = calls.length;
+  el.innerHTML = calls.map(c => {
+    const sc = statusClass(c.status);
+    const agentLabel = c.agent && c.agent !== c.callerNumber && c.agent !== c.calledNumber
+      ? ' <span style="color:#64b5f6;font-size:11px">[' + c.agent + ']</span>' : '';
+    return '<div class="call-card ' + sc + '">' +
+      '<div class="call-icon">' + statusIcon(c.status) + '</div>' +
+      '<div class="call-info">' +
+        '<div class="call-parties">' +
+          '<span class="ext">' + (c.callerNumber || '?') + '</span>' +
+          (c.callerName ? '<span class="name"> ' + c.callerName + '</span>' : '') +
+          '<span class="arrow">→</span>' +
+          (c.calledNumber ? '<span class="ext">' + c.calledNumber + '</span>' : '') +
+          (c.calledName ? '<span class="name"> ' + c.calledName + '</span>' : '<span class="name"> ?</span>') +
+          agentLabel +
+        '</div>' +
+        '<div class="call-meta">' +
+          directionBadge(c.direction) +
+          statusBadge(c.status) +
+        '</div>' +
+      '</div>' +
+      '<div class="call-duration">' + formatDuration(c.duration) + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function renderRecentCalls(jsonStr) {
+  const el = document.getElementById('recentCallsList');
+  let calls = [];
+  try { calls = JSON.parse(jsonStr || '[]'); } catch(e) { calls = []; }
+
+  if (!calls.length) {
+    el.innerHTML = '<div class="no-calls">Ingen seneste opkald</div>';
+    return;
+  }
+
+  let html = '<table class="recent-table"><thead><tr>' +
+    '<th>Tid</th><th>Retning</th><th>Fra</th><th>Til</th><th>Varighed</th><th>Status</th>' +
+    '</tr></thead><tbody>';
+
+  for (const c of calls) {
+    const rowClass = c.answered ? 'answered' : 'missed';
+    let timeStr = '';
+    if (c.endTime) {
+      try {
+        const d = new Date(c.endTime);
+        timeStr = d.toLocaleTimeString('da-DK', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+      } catch(e) { timeStr = c.endTime; }
+    }
+    const callerDisplay = c.callerName
+      ? c.callerNumber + ' ' + c.callerName
+      : c.callerNumber || '-';
+    const calledDisplay = c.calledName
+      ? c.calledNumber + ' ' + c.calledName
+      : c.calledNumber || '-';
+    const statusText = c.answered ? '✓ Besvaret' : '✗ Ubesvaret';
+
+    html += '<tr class="' + rowClass + '">' +
+      '<td>' + timeStr + '</td>' +
+      '<td>' + directionBadge(c.direction) + '</td>' +
+      '<td>' + callerDisplay + '</td>' +
+      '<td>' + calledDisplay + '</td>' +
+      '<td>' + formatDuration(c.duration) + '</td>' +
+      '<td>' + statusText + '</td>' +
+      '</tr>';
+  }
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function renderMissedCalls(jsonStr) {
+  const el = document.getElementById('missedCallsList');
+  let calls = [];
+  try { calls = JSON.parse(jsonStr || '[]'); } catch(e) { calls = []; }
+
+  if (!calls.length) {
+    el.innerHTML = '<div class="no-calls">Ingen ubesvarede opkald</div>';
+    return;
+  }
+
+  let html = '<table class="recent-table"><thead><tr>' +
+    '<th>Tid</th><th>Fra</th><th>Til</th>' +
+    '</tr></thead><tbody>';
+
+  for (const c of calls) {
+    let timeStr = '';
+    if (c.endTime) {
+      try {
+        const d = new Date(c.endTime);
+        timeStr = d.toLocaleTimeString('da-DK', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+      } catch(e) { timeStr = c.endTime; }
+    }
+    const callerDisplay = c.callerName
+      ? c.callerNumber + ' ' + c.callerName
+      : c.callerNumber || '-';
+    const calledDisplay = c.calledName
+      ? c.calledNumber + ' ' + c.calledName
+      : c.calledNumber || '-';
+
+    html += '<tr class="missed">' +
+      '<td>' + timeStr + '</td>' +
+      '<td>' + callerDisplay + '</td>' +
+      '<td>' + calledDisplay + '</td>' +
+      '</tr>';
+  }
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function renderExtensions(statuses) {
+  const el = document.getElementById('extGrid');
+  let online = 0;
+  el.innerHTML = EXTENSIONS.map(e => {
+    const st = (statuses[e.num] || {}).status || 'offline';
+    const pr = (statuses[e.num] || {}).presence || '';
+    const dotClass = st === 'oncall' ? 'oncall' :
+                     st === 'offline' ? 'offline' :
+                     pr === 'Away' ? 'away' :
+                     pr === 'DND' ? 'dnd' : 'available';
+    if (st !== 'offline') online++;
+    return '<div class="ext-card">' +
+      '<div class="ext-dot ' + dotClass + '"></div>' +
+      '<div><span class="ext-num">' + e.num + '</span> <span class="ext-name">' + e.name + '</span></div>' +
+    '</div>';
+  }).join('');
+  document.getElementById('extOnline').textContent = online;
+}
+
+function renderRingGroups(rgData) {
+  const el = document.getElementById('rgGrid');
+  if (!RING_GROUPS.length) return;
+  el.innerHTML = RING_GROUPS.map(rg => {
+    const d = rgData[rg.num] || {};
+    const name = d.name || rg.name;
+    const strategy = d.strategy || '-';
+    const members = d.members || '';
+    const count = d.memberCount || '0';
+    return '<div class="rg-card">' +
+      '<div class="rg-header"><div><span class="rg-num">' + rg.num + '</span> <span class="rg-name">' + name + '</span></div></div>' +
+      '<div class="rg-meta">' + strategyBadge(strategy) + '<span class="member-count">👥 ' + count + ' medlemmer</span></div>' +
+      '<div class="rg-members" title="' + members + '">' + (members || 'Ingen medlemmer') + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function renderQueues(qData) {
+  const el = document.getElementById('qGrid');
+  if (!QUEUES.length) return;
+  el.innerHTML = QUEUES.map(q => {
+    const d = qData[q.num] || {};
+    const name = d.name || q.name;
+    const strategy = d.strategy || '-';
+    const agents = d.agents || '';
+    const count = d.agentCount || '0';
+    const waiting = parseInt(d.waiting) || 0;
+    const waitingHtml = waiting > 0 ? '<span class="badge waiting">⏳ ' + waiting + ' ventende</span>' : '';
+    return '<div class="q-card">' +
+      '<div class="q-header"><div><span class="q-num">' + q.num + '</span> <span class="q-name">' + name + '</span></div>' + waitingHtml + '</div>' +
+      '<div class="q-meta">' + strategyBadge(strategy) + '<span class="agent-count">👤 ' + count + ' agenter</span></div>' +
+      '<div class="q-agents" title="' + agents + '">' + (agents || 'Ingen agenter') + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function renderTrunks(trunkStr) {
+  if (!trunkStr) return;
+  document.getElementById('trunkSection').style.display = '';
+  document.getElementById('trunkList').innerHTML =
+    '<div class="trunk-row">' +
+      '<div class="trunk-dot ' + (trunkStr.toLowerCase().includes('offline') ? 'offline' : 'online') + '"></div>' +
+      '<span>' + trunkStr + '</span>' +
+    '</div>';
+}
+
+// ─── Refresh loop ──────────────────────────────────────────
+async function refresh() {
+  try {
+    // Fetch core items in parallel
+    const coreItems = [
+      'PBX_Active_Calls_Json', 'PBX_Recent_Calls_Json',
+      'PBX_Recent_Missed_Calls_Json', 'PBX_Missed_Count_Today', 'PBX_Trunk_Status',
+      'PBX_Total_Calls_Today'
+    ];
+    const coreStates = await Promise.all(coreItems.map(fetchState));
+    const [activeJson, recentJson, missedJson, missed, trunk, totalCalls] = coreStates;
+
+    renderActiveCalls(activeJson);
+    renderRecentCalls(recentJson);
+    renderMissedCalls(missedJson);
+    document.getElementById('missedToday').textContent = missed || '0';
+    document.getElementById('totalCalls').textContent = totalCalls || '0';
+    renderTrunks(trunk);
+
+    // Fetch extension statuses
+    if (EXTENSIONS.length > 0) {
+      const extItems = EXTENSIONS.flatMap(e => [
+        'PBX_Ext_' + e.num + '_Status',
+        'PBX_Ext_' + e.num + '_Presence'
+      ]);
+      const extStates = await Promise.all(extItems.map(fetchState));
+      const statuses = {};
+      EXTENSIONS.forEach((e, i) => {
+        statuses[e.num] = {
+          status: extStates[i * 2] || 'offline',
+          presence: extStates[i * 2 + 1] || ''
+        };
+      });
+      renderExtensions(statuses);
+    }
+
+    // Fetch ring group data
+    if (RING_GROUPS.length > 0) {
+      const rgItems = RING_GROUPS.flatMap(rg => [
+        'PBX_RG_' + rg.num + '_Name', 'PBX_RG_' + rg.num + '_Strategy',
+        'PBX_RG_' + rg.num + '_Members', 'PBX_RG_' + rg.num + '_MemberCount'
+      ]);
+      const rgStates = await Promise.all(rgItems.map(fetchState));
+      const rgData = {};
+      RING_GROUPS.forEach((rg, i) => {
+        rgData[rg.num] = {
+          name: rgStates[i*4] || rg.name, strategy: rgStates[i*4+1] || '-',
+          members: rgStates[i*4+2] || '', memberCount: rgStates[i*4+3] || '0'
+        };
+      });
+      renderRingGroups(rgData);
+    }
+
+    // Fetch queue data
+    if (QUEUES.length > 0) {
+      const qItems = QUEUES.flatMap(q => [
+        'PBX_Q_' + q.num + '_Name', 'PBX_Q_' + q.num + '_Strategy',
+        'PBX_Q_' + q.num + '_Agents', 'PBX_Q_' + q.num + '_AgentCount',
+        'PBX_Q_' + q.num + '_Waiting'
+      ]);
+      const qStates = await Promise.all(qItems.map(fetchState));
+      const qData = {};
+      QUEUES.forEach((q, i) => {
+        qData[q.num] = {
+          name: qStates[i*5] || q.name, strategy: qStates[i*5+1] || '-',
+          agents: qStates[i*5+2] || '', agentCount: qStates[i*5+3] || '0',
+          waiting: qStates[i*5+4] || '0'
+        };
+      });
+      renderQueues(qData);
+    }
+
+    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('da-DK');
+    document.getElementById('lastUpdate').style.color = '#5a6a8a';
+  } catch(e) {
+    console.error('Refresh error:', e);
+    document.getElementById('lastUpdate').textContent = 'FEJL: ' + e.message;
+    document.getElementById('lastUpdate').style.color = '#ef5350';
+  }
+}
+
+async function init() {
+  await Promise.all([discoverExtensions(), discoverRingGroups(), discoverQueues()]);
+  refresh();
+  setInterval(refresh, 2000);
+  setInterval(async () => {
+    await Promise.all([discoverExtensions(), discoverRingGroups(), discoverQueues()]);
+  }, 300000);
+}
+init();
+</script>
+</body>
+</html>

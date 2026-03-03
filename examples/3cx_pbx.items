@@ -1,0 +1,53 @@
+// 3CX PBX Binding — Example Items
+// Copy to: items/3cx_pbx.items
+
+Group gPBX "3CX Phone System" <phone> (gAll)
+
+// ── Current Call State ──────────────────────────────────────
+String   PBX_Call_State      "Call Status [%s]"           <phone>      (gPBX) { channel="pbx3cx:server:main:callState" }
+String   PBX_Caller_Number   "Caller Number [%s]"         <phone>      (gPBX) { channel="pbx3cx:server:main:callerNumber" }
+String   PBX_Caller_Name     "Caller Name [%s]"           <man_3>      (gPBX) { channel="pbx3cx:server:main:callerName" }
+String   PBX_Called_Number    "Called Number [%s]"          <phone>      (gPBX) { channel="pbx3cx:server:main:calledNumber" }
+String   PBX_Call_Direction   "Direction [%s]"              <flow>       (gPBX) { channel="pbx3cx:server:main:callDirection" }
+Number   PBX_Call_Duration    "Duration [%d sec]"           <time>       (gPBX) { channel="pbx3cx:server:main:callDuration" }
+String   PBX_Call_Agent       "Agent [%s]"                  <man_3>      (gPBX) { channel="pbx3cx:server:main:callAgent" }
+DateTime PBX_Call_Timestamp   "Call Time [%1$tH:%1$tM:%1$tS]" <calendar> (gPBX) { channel="pbx3cx:server:main:callTimestamp" }
+
+// ── Missed Calls ────────────────────────────────────────────
+String   PBX_Last_Missed_Caller "Last Missed [%s]"          <phone>      (gPBX) { channel="pbx3cx:server:main:lastMissedCaller" }
+DateTime PBX_Last_Missed_Time   "Missed Time [%1$tH:%1$tM]"  <calendar>   (gPBX) { channel="pbx3cx:server:main:lastMissedTime" }
+Number   PBX_Missed_Count_Today "Missed Today [%d]"          <returnpipe> (gPBX) { channel="pbx3cx:server:main:missedCount" }
+Number   PBX_Total_Calls_Today  "Calls Today [%d]"           <phone>      (gPBX) { channel="pbx3cx:server:main:totalCalls" }
+
+// ── JSON Data (for dashboard & advanced rules) ──────────────
+Number   PBX_Active_Calls             "Active Calls [%d]"      <phone> (gPBX) { channel="pbx3cx:server:main:activeCalls" }
+String   PBX_Active_Calls_Json        "Active Calls JSON [%s]" <phone> (gPBX) { channel="pbx3cx:server:main:activeCallsJson" }
+String   PBX_Recent_Calls_Json        "Recent Calls JSON [%s]" <phone> (gPBX) { channel="pbx3cx:server:main:recentCallsJson" }
+String   PBX_Recent_Missed_Calls_Json "Missed Calls JSON [%s]" <phone> (gPBX) { channel="pbx3cx:server:main:recentMissedCallsJson" }
+
+// ── System ──────────────────────────────────────────────────
+String   PBX_System_Status  "PBX Status [%s]"    <network>  (gPBX) { channel="pbx3cx:server:main:systemStatus" }
+String   PBX_Trunk_Status   "Trunk Status [%s]"  <network>  (gPBX) { channel="pbx3cx:server:main:trunkStatus" }
+String   PBX_Recording_URL  "Recording [%s]"     <recorder> (gPBX) { channel="pbx3cx:server:main:recordingUrl" }
+
+// ── Extension Items (per extension) ─────────────────────────
+// Repeat for each extension defined in things file.
+// The channel format is: pbx3cx:extension:main:ext{NUM}:{channel}
+
+String PBX_Ext_200_Status   "Ext 200 Status [%s]"   <phone>  (gPBX) { channel="pbx3cx:extension:main:ext200:status" }
+String PBX_Ext_200_Presence "Ext 200 Presence [%s]"  <man_3>  (gPBX) { channel="pbx3cx:extension:main:ext200:presence" }
+String PBX_Ext_200_Name     "Ext 200 Name [%s]"      <man_3>  (gPBX) { channel="pbx3cx:extension:main:ext200:name" }
+Switch PBX_Ext_200_Reg      "Ext 200 Registered [%s]" <network>(gPBX) { channel="pbx3cx:extension:main:ext200:registered" }
+
+// ── Ring Group Items ────────────────────────────────────────
+String PBX_RG_800_Name        "RG 800 Name [%s]"       <group>  (gPBX) { channel="pbx3cx:ringgroup:main:rg800:rgName" }
+String PBX_RG_800_Strategy    "RG 800 Strategy [%s]"    <settings>(gPBX) { channel="pbx3cx:ringgroup:main:rg800:rgStrategy" }
+String PBX_RG_800_Members     "RG 800 Members [%s]"     <group>  (gPBX) { channel="pbx3cx:ringgroup:main:rg800:rgMembers" }
+Number PBX_RG_800_MemberCount "RG 800 Count [%d]"       <group>  (gPBX) { channel="pbx3cx:ringgroup:main:rg800:rgMemberCount" }
+
+// ── Queue Items ─────────────────────────────────────────────
+String PBX_Q_900_Name        "Q 900 Name [%s]"         <group>  (gPBX) { channel="pbx3cx:queue:main:q900:qName" }
+String PBX_Q_900_Strategy    "Q 900 Strategy [%s]"      <settings>(gPBX) { channel="pbx3cx:queue:main:q900:qStrategy" }
+String PBX_Q_900_Agents      "Q 900 Agents [%s]"        <group>  (gPBX) { channel="pbx3cx:queue:main:q900:qAgents" }
+Number PBX_Q_900_AgentCount  "Q 900 Count [%d]"         <group>  (gPBX) { channel="pbx3cx:queue:main:q900:qAgentCount" }
+Number PBX_Q_900_Waiting     "Q 900 Waiting [%d]"       <time>   (gPBX) { channel="pbx3cx:queue:main:q900:qWaitingCallers" }

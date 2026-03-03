@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<features name="openhab-binding-pbx3cx-${project.version}" xmlns="http://karaf.apache.org/xmlns/features/v1.3.0">
+    <feature name="openhab-binding-pbx3cx" description="3CX PBX call monitor binding" version="${project.version}">
+        <bundle>mvn:org.openhab.addons.bundles/org.openhab.binding.pbx3cx/${project.version}</bundle>
+    </feature>
+</features>

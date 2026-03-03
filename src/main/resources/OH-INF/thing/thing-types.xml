@@ -1,0 +1,470 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<thing:thing-descriptions bindingId="pbx3cx"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:thing="https://openhab.org/schemas/thing-description/v1.0.0"
+	xsi:schemaLocation="https://openhab.org/schemas/thing-description/v1.0.0
+	https://openhab.org/schemas/thing-description-1.0.0.xsd">
+
+	<!-- ═══════════════════════════════════════════════════════════════════
+		Bridge: 3CX Server (xAPI connection + webhook receiver)
+		═══════════════════════════════════════════════════════════════════ -->
+	<bridge-type id="server">
+		<label>3CX PBX Server</label>
+		<description>3CX PBX V20 server connection via xAPI — monitors calls, extensions, and trunks</description>
+
+		<channels>
+			<!-- Active call channels -->
+			<channel id="callState" typeId="callState"/>
+			<channel id="callerNumber" typeId="callerNumber"/>
+			<channel id="callerName" typeId="callerName"/>
+			<channel id="calledNumber" typeId="calledNumber"/>
+			<channel id="callDirection" typeId="callDirection"/>
+			<channel id="callDuration" typeId="callDuration"/>
+			<channel id="callAgent" typeId="callAgent"/>
+			<channel id="callTimestamp" typeId="callTimestamp"/>
+
+			<!-- Missed calls -->
+			<channel id="missedCount" typeId="missedCount"/>
+			<channel id="totalCalls" typeId="totalCalls"/>
+			<channel id="lastMissedCaller" typeId="lastMissedCaller"/>
+			<channel id="lastMissedTime" typeId="lastMissedTime"/>
+
+			<!-- System channels -->
+			<channel id="activeCalls" typeId="activeCalls"/>
+			<channel id="activeCallsJson" typeId="activeCallsJson"/>
+			<channel id="recentCallsJson" typeId="recentCallsJson"/>
+			<channel id="recentMissedCallsJson" typeId="recentMissedCallsJson"/>
+			<channel id="trunkStatus" typeId="trunkStatus"/>
+			<channel id="recordingUrl" typeId="recordingUrl"/>
+			<channel id="systemStatus" typeId="systemStatus"/>
+
+			<!-- Actions -->
+			<channel id="makeCall" typeId="makeCall"/>
+		</channels>
+
+		<config-description>
+			<parameter name="hostname" type="text" required="true">
+				<label>Hostname</label>
+				<description>3CX server hostname or IP address</description>
+			</parameter>
+			<parameter name="port" type="integer" required="false">
+				<label>Port</label>
+				<description>3CX webclient API port (default: 5001)</description>
+				<default>5001</default>
+			</parameter>
+			<parameter name="username" type="text" required="true">
+				<label>Username</label>
+				<description>3CX xAPI username (extension number with admin role)</description>
+			</parameter>
+			<parameter name="password" type="text" required="true">
+				<label>Password</label>
+				<description>3CX xAPI password</description>
+				<context>password</context>
+			</parameter>
+			<parameter name="pollInterval" type="integer" required="false">
+				<label>Poll Interval</label>
+				<description>Active calls polling interval in seconds</description>
+				<default>2</default>
+			</parameter>
+			<parameter name="presenceInterval" type="integer" required="false">
+				<label>Presence Interval</label>
+				<description>Extension presence polling interval in seconds</description>
+				<default>30</default>
+			</parameter>
+			<parameter name="trunkInterval" type="integer" required="false">
+				<label>Trunk Interval</label>
+				<description>Trunk status polling interval in seconds</description>
+				<default>60</default>
+			</parameter>
+			<parameter name="verifySsl" type="boolean" required="false">
+				<label>Verify SSL</label>
+				<description>Verify SSL certificates (disable for self-signed 3CX certs)</description>
+				<default>false</default>
+			</parameter>
+			<parameter name="webhookPort" type="integer" required="false">
+				<label>Webhook Port</label>
+				<description>Port for incoming CRM/CFD webhook listener (0 = disabled)</description>
+				<default>5002</default>
+			</parameter>
+			<parameter name="recentCallsMax" type="integer" required="false">
+				<label>Recent Calls Max</label>
+				<description>Maximum number of recent calls to keep in history</description>
+				<default>10</default>
+			</parameter>
+			<parameter name="recentMissedCallsMax" type="integer" required="false">
+				<label>Missed Calls Max</label>
+				<description>Maximum number of missed calls to keep in history</description>
+				<default>10</default>
+			</parameter>
+		</config-description>
+	</bridge-type>
+
+	<!-- ═══════════════════════════════════════════════════════════════════
+		Thing: Extension (per-extension status monitoring)
+		═══════════════════════════════════════════════════════════════════ -->
+	<thing-type id="extension">
+		<supported-bridge-type-refs>
+			<bridge-type-ref id="server"/>
+		</supported-bridge-type-refs>
+
+		<label>3CX Extension</label>
+		<description>A 3CX phone extension with status and presence tracking</description>
+
+		<channels>
+			<channel id="status" typeId="extensionStatus"/>
+			<channel id="presence" typeId="extensionPresence"/>
+			<channel id="name" typeId="extensionName"/>
+			<channel id="registered" typeId="extensionRegistered"/>
+		</channels>
+
+		<config-description>
+			<parameter name="extensionNumber" type="text" required="true">
+				<label>Extension Number</label>
+				<description>The 3CX extension number (e.g. 200, 201)</description>
+			</parameter>
+		</config-description>
+	</thing-type>
+
+	<!-- ═══════════════════════════════════════════════════════════════════
+		Thing: Ring Group
+		═════════════════════════════════════════════════════════════════ -->
+	<thing-type id="ringgroup">
+		<supported-bridge-type-refs>
+			<bridge-type-ref id="server"/>
+		</supported-bridge-type-refs>
+
+		<label>3CX Ring Group</label>
+		<description>A 3CX ring group with member tracking</description>
+
+		<channels>
+			<channel id="name" typeId="rgName"/>
+			<channel id="strategy" typeId="rgStrategy"/>
+			<channel id="members" typeId="rgMembers"/>
+			<channel id="memberCount" typeId="rgMemberCount"/>
+			<channel id="registered" typeId="rgRegistered"/>
+		</channels>
+
+		<config-description>
+			<parameter name="ringGroupNumber" type="text" required="true">
+				<label>Ring Group Number</label>
+				<description>The 3CX ring group number (e.g. 803, 804)</description>
+			</parameter>
+		</config-description>
+	</thing-type>
+
+	<!-- ═════════════════════════════════════════════════════════════════
+		Thing: Call Queue
+		═════════════════════════════════════════════════════════════════ -->
+	<thing-type id="queue">
+		<supported-bridge-type-refs>
+			<bridge-type-ref id="server"/>
+		</supported-bridge-type-refs>
+
+		<label>3CX Call Queue</label>
+		<description>A 3CX call queue with agent tracking and waiting caller count</description>
+
+		<channels>
+			<channel id="name" typeId="qName"/>
+			<channel id="strategy" typeId="qStrategy"/>
+			<channel id="agents" typeId="qAgents"/>
+			<channel id="agentCount" typeId="qAgentCount"/>
+			<channel id="waitingCallers" typeId="qWaitingCallers"/>
+			<channel id="registered" typeId="qRegistered"/>
+		</channels>
+
+		<config-description>
+			<parameter name="queueNumber" type="text" required="true">
+				<label>Queue Number</label>
+				<description>The 3CX queue number (e.g. 808, 809)</description>
+			</parameter>
+		</config-description>
+	</thing-type>
+
+	<!-- ═════════════════════════════════════════════════════════════════
+		Channel Types
+		═════════════════════════════════════════════════════════════════ -->
+
+	<!-- Call state channels -->
+	<channel-type id="callState">
+		<item-type>String</item-type>
+		<label>Call State</label>
+		<description>Current call state: idle, ringing, active, outgoing</description>
+		<state readOnly="true">
+			<options>
+				<option value="idle">Idle</option>
+				<option value="ringing">Ringing</option>
+				<option value="active">Active</option>
+				<option value="outgoing">Outgoing</option>
+			</options>
+		</state>
+	</channel-type>
+
+	<channel-type id="callerNumber">
+		<item-type>String</item-type>
+		<label>Caller Number</label>
+		<description>Phone number of the current/last caller</description>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="callerName">
+		<item-type>String</item-type>
+		<label>Caller Name</label>
+		<description>Display name of the current/last caller</description>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="calledNumber">
+		<item-type>String</item-type>
+		<label>Called Number</label>
+		<description>The destination number being called</description>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="callDirection">
+		<item-type>String</item-type>
+		<label>Call Direction</label>
+		<description>Call direction: inbound, outbound, internal</description>
+		<state readOnly="true">
+			<options>
+				<option value="inbound">Inbound</option>
+				<option value="outbound">Outbound</option>
+				<option value="internal">Internal</option>
+			</options>
+		</state>
+	</channel-type>
+
+	<channel-type id="callDuration">
+		<item-type>Number</item-type>
+		<label>Call Duration</label>
+		<description>Duration of the last call in seconds</description>
+		<state readOnly="true" pattern="%d s"/>
+	</channel-type>
+
+	<channel-type id="callAgent">
+		<item-type>String</item-type>
+		<label>Call Agent</label>
+		<description>Extension handling the call</description>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="callTimestamp">
+		<item-type>DateTime</item-type>
+		<label>Call Timestamp</label>
+		<description>Timestamp of the current/last call event</description>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<!-- Missed call channels -->
+	<channel-type id="missedCount">
+		<item-type>Number</item-type>
+		<label>Missed Calls Today</label>
+		<description>Number of missed calls since midnight</description>
+		<state readOnly="true" pattern="%d"/>
+	</channel-type>
+
+	<channel-type id="totalCalls">
+		<item-type>Number</item-type>
+		<label>Total Calls Today</label>
+		<description>Total number of calls since midnight</description>
+		<state readOnly="true" pattern="%d"/>
+	</channel-type>
+
+	<channel-type id="lastMissedCaller">
+		<item-type>String</item-type>
+		<label>Last Missed Caller</label>
+		<description>Number of the last missed caller</description>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="lastMissedTime">
+		<item-type>DateTime</item-type>
+		<label>Last Missed Time</label>
+		<description>When the last missed call occurred</description>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<!-- System channels -->
+	<channel-type id="activeCalls">
+		<item-type>Number</item-type>
+		<label>Active Calls</label>
+		<description>Number of currently active calls</description>
+		<state readOnly="true" pattern="%d"/>
+	</channel-type>
+
+	<channel-type id="activeCallsJson">
+		<item-type>String</item-type>
+		<label>Active Calls JSON</label>
+		<description>JSON array of all currently active calls with full detail</description>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="recentCallsJson">
+		<item-type>String</item-type>
+		<label>Recent Calls JSON</label>
+		<description>JSON array of the last 10 completed calls with full detail</description>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="recentMissedCallsJson">
+		<item-type>String</item-type>
+		<label>Recent Missed Calls JSON</label>
+		<description>JSON array of the last 10 unanswered inbound calls</description>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="trunkStatus">
+		<item-type>String</item-type>
+		<label>Trunk Status</label>
+		<description>SIP trunk status summary (e.g. 2/3 online)</description>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="recordingUrl">
+		<item-type>String</item-type>
+		<label>Recording URL</label>
+		<description>URL of the last call recording</description>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="systemStatus">
+		<item-type>String</item-type>
+		<label>System Status</label>
+		<description>PBX system status: ONLINE, OFFLINE, ERROR</description>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<!-- Action channels -->
+	<channel-type id="makeCall">
+		<item-type>String</item-type>
+		<label>Make Call</label>
+		<description>Initiate a call. Format: extension,destination (e.g. 200,+4512345678)</description>
+	</channel-type>
+
+	<!-- Extension channels -->
+	<channel-type id="extensionStatus">
+		<item-type>String</item-type>
+		<label>Extension Status</label>
+		<description>Call status: available, oncall, away, dnd, offline</description>
+		<state readOnly="true">
+			<options>
+				<option value="available">Available</option>
+				<option value="oncall">On Call</option>
+				<option value="away">Away</option>
+				<option value="dnd">Do Not Disturb</option>
+				<option value="offline">Offline</option>
+			</options>
+		</state>
+	</channel-type>
+
+	<channel-type id="extensionPresence">
+		<item-type>String</item-type>
+		<label>Presence Profile</label>
+		<description>3CX presence profile: Available, Away, DND, Custom</description>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="extensionName">
+		<item-type>String</item-type>
+		<label>Extension Name</label>
+		<description>Registered display name of the extension user</description>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="extensionRegistered">
+		<item-type>Switch</item-type>
+		<label>Registered</label>
+		<description>Whether the extension is registered (phone connected)</description>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<!-- Ring Group channels -->
+	<channel-type id="rgName">
+		<item-type>String</item-type>
+		<label>Ring Group Name</label>
+		<description>Name of the ring group</description>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="rgStrategy">
+		<item-type>String</item-type>
+		<label>Ring Strategy</label>
+		<description>Ring strategy: Hunt, RingAll, Paging</description>
+		<state readOnly="true">
+			<options>
+				<option value="Hunt">Hunt</option>
+				<option value="RingAll">Ring All</option>
+				<option value="Paging">Paging</option>
+			</options>
+		</state>
+	</channel-type>
+
+	<channel-type id="rgMembers">
+		<item-type>String</item-type>
+		<label>Members</label>
+		<description>Comma-separated list of ring group members (extension numbers and names)</description>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="rgMemberCount">
+		<item-type>Number</item-type>
+		<label>Member Count</label>
+		<description>Number of members in the ring group</description>
+		<state readOnly="true" pattern="%d"/>
+	</channel-type>
+
+	<channel-type id="rgRegistered">
+		<item-type>Switch</item-type>
+		<label>Registered</label>
+		<description>Whether the ring group is registered on the PBX</description>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<!-- Queue channels -->
+	<channel-type id="qName">
+		<item-type>String</item-type>
+		<label>Queue Name</label>
+		<description>Name of the call queue</description>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="qStrategy">
+		<item-type>String</item-type>
+		<label>Polling Strategy</label>
+		<description>Queue polling strategy: Hunt, RingAll</description>
+		<state readOnly="true">
+			<options>
+				<option value="Hunt">Hunt</option>
+				<option value="RingAll">Ring All</option>
+			</options>
+		</state>
+	</channel-type>
+
+	<channel-type id="qAgents">
+		<item-type>String</item-type>
+		<label>Agents</label>
+		<description>Comma-separated list of queue agents (extension numbers and names)</description>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="qAgentCount">
+		<item-type>Number</item-type>
+		<label>Agent Count</label>
+		<description>Number of agents in the queue</description>
+		<state readOnly="true" pattern="%d"/>
+	</channel-type>
+
+	<channel-type id="qWaitingCallers">
+		<item-type>Number</item-type>
+		<label>Waiting Callers</label>
+		<description>Number of callers waiting in the queue</description>
+		<state readOnly="true" pattern="%d"/>
+	</channel-type>
+
+	<channel-type id="qRegistered">
+		<item-type>Switch</item-type>
+		<label>Registered</label>
+		<description>Whether the queue is registered on the PBX</description>
+		<state readOnly="true"/>
+	</channel-type>
+
+</thing:thing-descriptions>

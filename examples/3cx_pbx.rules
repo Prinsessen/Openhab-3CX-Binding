@@ -1,0 +1,129 @@
+// 3CX PBX Binding — Example Rules
+// Copy to: rules/3cx_pbx.rules
+//
+// These rules demonstrate common automation patterns with the 3CX PBX binding.
+// Adapt them to your needs — uncomment notification actions as needed.
+
+import java.time.ZonedDateTime
+
+// ─── Missed Call Notification ──────────────────────────────────────────────
+// Triggers whenever the missed call counter increases.
+// Use with Telegram, email, pushover, or any notification binding.
+
+rule "PBX Missed Call Notification"
+when
+    Item PBX_Missed_Count_Today changed
+then
+    val caller = PBX_Last_Missed_Caller.state.toString
+    if (caller == "NULL" || caller == "UNDEF") return;
+
+    logInfo("pbx3cx", "Missed call from: {}", caller)
+
+    // Example: Telegram notification
+    // val telegramAction = getActions("telegram", "telegram:telegramBot:mybot")
+    // telegramAction.sendTelegram("📞 Missed call from: " + caller)
+
+    // Example: Email notification
+    // val mailAction = getActions("mail", "mail:smtp:mymail")
+    // mailAction.sendMail("alert@company.com", "Missed Call", "Missed call from: " + caller)
+end
+
+
+// ─── Inbound Call Alert ────────────────────────────────────────────────────
+// React to incoming calls — flash lights, play sounds, display on screen, etc.
+
+rule "PBX Inbound Call Ringing"
+when
+    Item PBX_Call_State changed to "ringing"
+then
+    if (PBX_Call_Direction.state.toString == "inbound") {
+        val caller = PBX_Caller_Number.state.toString
+        val name = PBX_Caller_Name.state.toString
+        logInfo("pbx3cx", "Incoming call from {} ({})", caller, name)
+
+        // Example: Flash Hue lights
+        // Hue_LivingRoom_Color.sendCommand("120,100,100")
+        // createTimer(now.plusSeconds(3), [| Hue_LivingRoom_Color.sendCommand("0,0,100") ])
+
+        // Example: TTS announcement (if you have a media player)
+        // MediaPlayer_TTS.sendCommand("Incoming call from " + name)
+    }
+end
+
+
+// ─── Call Ended — Restore State ────────────────────────────────────────────
+// Reset visual indicators when a call ends.
+
+rule "PBX Call Ended"
+when
+    Item PBX_Call_State changed to "idle"
+then
+    logInfo("pbx3cx", "Call ended — duration: {}s", PBX_Call_Duration.state)
+end
+
+
+// ─── Daily Summary ─────────────────────────────────────────────────────────
+// Send a daily summary of call activity at end of business.
+
+rule "PBX Daily Call Summary"
+when
+    Time cron "0 0 18 ? * MON-FRI"   // 6 PM weekdays
+then
+    val missed = (PBX_Missed_Count_Today.state as Number).intValue
+    val total  = (PBX_Total_Calls_Today.state as Number).intValue
+
+    val summary = String::format("📊 Daily PBX Summary: %d total calls, %d missed", total, missed)
+    logInfo("pbx3cx", summary)
+
+    // val telegramAction = getActions("telegram", "telegram:telegramBot:mybot")
+    // telegramAction.sendTelegram(summary)
+end
+
+
+// ─── PBX Offline Alert ─────────────────────────────────────────────────────
+// Alert if the PBX connection goes offline.
+
+rule "PBX System Offline"
+when
+    Item PBX_System_Status changed to "OFFLINE"
+then
+    logWarn("pbx3cx", "3CX PBX connection lost!")
+    // sendNotification("admin@company.com", "⚠️ 3CX PBX is OFFLINE!")
+end
+
+rule "PBX System Online"
+when
+    Item PBX_System_Status changed to "ONLINE"
+then
+    logInfo("pbx3cx", "3CX PBX connection restored")
+end
+
+
+// ─── Queue Overflow Alert ──────────────────────────────────────────────────
+// Alert when too many callers are waiting in a queue.
+
+// Requires: Number PBX_Q_900_Waiting { channel="pbx3cx:queue:main:q900:qWaitingCallers" }
+
+rule "PBX Queue Overflow"
+when
+    Item PBX_Q_900_Waiting changed
+then
+    val waiting = (PBX_Q_900_Waiting.state as Number).intValue
+    if (waiting >= 3) {
+        logWarn("pbx3cx", "Queue 900 has {} callers waiting — overflow!", waiting)
+        // Alert staff to pick up phones
+    }
+end
+
+
+// ─── Extension Monitoring ──────────────────────────────────────────────────
+// Track when specific extensions go offline (phone unplugged, network issue).
+
+// Requires: Switch PBX_Ext_200_Reg { channel="pbx3cx:extension:main:ext200:registered" }
+
+rule "PBX Extension 200 Offline"
+when
+    Item PBX_Ext_200_Reg changed to OFF
+then
+    logWarn("pbx3cx", "Extension 200 went OFFLINE (unregistered)")
+end

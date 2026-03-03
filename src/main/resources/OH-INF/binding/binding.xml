@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<binding:binding id="pbx3cx" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:binding="https://openhab.org/schemas/binding/v1.0.0"
+	xsi:schemaLocation="https://openhab.org/schemas/binding/v1.0.0
+		https://openhab.org/schemas/binding-1.0.0.xsd">
+	<name>3CX PBX</name>
+	<description>3CX PBX V20 call monitor binding — real-time call tracking, extension presence, trunk status, and
+		MakeCall
+		via xAPI</description>
+	<author>openHAB Community</author>
+</binding:binding>
