@@ -436,6 +436,7 @@ public class Pbx3cxServerHandler extends BaseBridgeHandler {
                 cancelAutoIdle();
 
                 currentCallState = STATE_IDLE;
+                updateState(CHANNEL_CALLER_NUMBER, new StringType(""));
                 updateState(CHANNEL_CALL_STATE, new StringType(STATE_IDLE));
                 updateState(CHANNEL_CALL_DURATION, new DecimalType(duration));
                 updateState(CHANNEL_CALL_TIMESTAMP, new DateTimeType(ZonedDateTime.now()));
@@ -990,6 +991,7 @@ public class Pbx3cxServerHandler extends BaseBridgeHandler {
                 logger.info("Auto-idle: resetting from '{}' after {}s timeout", currentCallState,
                         AUTO_IDLE_TIMEOUT_SECONDS);
                 currentCallState = STATE_IDLE;
+                updateState(CHANNEL_CALLER_NUMBER, new StringType(""));
                 updateState(CHANNEL_CALL_STATE, new StringType(STATE_IDLE));
             }
         }, AUTO_IDLE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -1076,6 +1078,7 @@ public class Pbx3cxServerHandler extends BaseBridgeHandler {
 
                 cancelAutoIdle();
                 currentCallState = STATE_IDLE;
+                updateState(CHANNEL_CALLER_NUMBER, new StringType(""));
                 updateState(CHANNEL_CALL_STATE, new StringType(STATE_IDLE));
 
                 int dur = 0;
