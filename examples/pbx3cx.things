@@ -3,8 +3,12 @@
 //
 // Replace hostname, username, and password with your 3CX credentials.
 // The username must be an extension with admin/system_admins privileges.
+//
+// SIP parameters are optional — only needed for MakeCall / AlarmCall features.
+// The SIP extension should be a dedicated extension on the 3CX server.
 
 Bridge pbx3cx:server:main "3CX PBX" [
+    // ── 3CX xAPI connection ─────────────────────────────────
     hostname="your-3cx-server.example.com",
     port=5001,
     username="600",
@@ -14,8 +18,18 @@ Bridge pbx3cx:server:main "3CX PBX" [
     trunkInterval=60,
     verifySsl=true,
     webhookPort=0,
-    recentCallsMax=20,
-    recentMissedCallsMax=20
+    recentCallsMax=10,
+    recentMissedCallsMax=10,
+
+    // ── SIP / Baresip (optional — for MakeCall & AlarmCall) ─
+    sipServer="your-sip-server.example.com",
+    sipExtension="600",
+    sipAuthUser="CHANGE-ME",
+    sipAuthPass="CHANGE-ME",
+    sipAlertExtensions="+4512345678,+4587654321",
+    sipMaxRingTime=30,
+    sipAudioPath="/etc/openhab/sounds/alerts",
+    makeCallDuration=30
 ] {
     // ── Extensions ──────────────────────────────────────────
     // List your 3CX extensions here, or use auto-discovery.

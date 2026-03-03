@@ -6,6 +6,12 @@
 
 import java.time.ZonedDateTime
 
+// ─── Variable declarations (must be before all rules) ──────────────────────
+var Timer vipFlashTimer = null
+var boolean vipFlashRed = true
+var boolean vipLightWasOff = true
+
+
 // ─── Missed Call Notification ──────────────────────────────────────────────
 // Triggers whenever the missed call counter increases.
 // Use with Telegram, email, pushover, or any notification binding.
@@ -21,7 +27,7 @@ then
 
     // Example: Telegram notification
     // val telegramAction = getActions("telegram", "telegram:telegramBot:mybot")
-    // telegramAction.sendTelegram("📞 Missed call from: " + caller)
+    // telegramAction.sendTelegram("Missed call from: " + caller)
 
     // Example: Email notification
     // val mailAction = getActions("mail", "mail:smtp:mymail")
@@ -30,16 +36,26 @@ end
 
 
 // ─── Inbound Call Alert ────────────────────────────────────────────────────
-// React to incoming calls — flash lights, play sounds, display on screen, etc.
+// React to incoming calls — flash lights, play sounds, display on screen.
+//
+// IMPORTANT: Trigger on PBX_Caller_Number changed (not PBX_Call_State changed
+// to "ringing") because fast-answered calls may be detected as "active" and
+// would never pass through "ringing".
 
-rule "PBX Inbound Call Ringing"
+rule "PBX Inbound Call Alert"
 when
-    Item PBX_Call_State changed to "ringing"
+    Item PBX_Caller_Number changed
 then
-    if (PBX_Call_Direction.state.toString == "inbound") {
-        val caller = PBX_Caller_Number.state.toString
+    val callerNumber = PBX_Caller_Number.state.toString
+    if (callerNumber == "NULL" || callerNumber == "UNDEF" || callerNumber == "") return;
+
+    val callState = PBX_Call_State.state.toString
+    if (callState == "idle") return;    // ignore stale updates
+
+    val direction = PBX_Call_Direction.state.toString
+    if (direction == "inbound") {
         val name = PBX_Caller_Name.state.toString
-        logInfo("pbx3cx", "Incoming call from {} ({})", caller, name)
+        logInfo("pbx3cx", "Incoming call from {} ({})", callerNumber, name)
 
         // Example: Flash Hue lights
         // Hue_LivingRoom_Color.sendCommand("120,100,100")
@@ -47,6 +63,60 @@ then
 
         // Example: TTS announcement (if you have a media player)
         // MediaPlayer_TTS.sendCommand("Incoming call from " + name)
+    }
+end
+
+
+// ─── VIP Caller Flash ──────────────────────────────────────────────────────
+// Flash a specific light red/blue when a VIP caller (e.g. "22162460") rings.
+// Stops when call is answered (active) or ends (idle).
+// Uses force-clear-then-set pattern on callerNumber for reliable triggering.
+
+rule "PBX VIP Caller Flash — Start"
+when
+    Item PBX_Caller_Number changed
+then
+    val callerNumber = PBX_Caller_Number.state.toString
+    if (callerNumber == "NULL" || callerNumber == "UNDEF" || callerNumber == "") return;
+    if (!callerNumber.contains("22162460")) return;
+
+    // Prevent duplicate timers
+    if (vipFlashTimer !== null) return;
+
+    logInfo("pbx3cx", "VIP caller detected: {}", callerNumber)
+
+    // Remember current light state to restore later
+    // vipLightWasOff = (MyLight_Toggle.state == OFF)
+
+    vipFlashRed = true
+    vipFlashTimer = createTimer(now.plusSeconds(1), [ |
+        if (vipFlashRed) {
+            // Red
+            // MyLight_Color.sendCommand("0,100,100")
+            logInfo("pbx3cx", "VIP flash: RED")
+        } else {
+            // Blue
+            // MyLight_Color.sendCommand("240,100,100")
+            logInfo("pbx3cx", "VIP flash: BLUE")
+        }
+        vipFlashRed = !vipFlashRed
+        vipFlashTimer.reschedule(now.plusSeconds(1))
+    ])
+end
+
+rule "PBX VIP Caller Flash — Stop"
+when
+    Item PBX_Call_State changed to "active" or
+    Item PBX_Call_State changed to "idle"
+then
+    if (vipFlashTimer !== null) {
+        vipFlashTimer.cancel
+        vipFlashTimer = null
+        logInfo("pbx3cx", "VIP flash stopped — call {}", PBX_Call_State.state)
+
+        // Restore light state
+        // if (vipLightWasOff) { MyLight_Toggle.sendCommand(OFF) }
+        // else { MyLight_Color.sendCommand("30,100,100") }
     }
 end
 
@@ -62,6 +132,33 @@ then
 end
 
 
+// ─── SIP Alarm Call ────────────────────────────────────────────────────────
+// Trigger alarm calls when specific events occur.
+// The binding places the call via baresip to the configured sipAlertExtensions,
+// plays an audio file, waits for DTMF confirmation, then retries next number.
+//
+// Alert types depend on your audio files: towing_alert.wav, unplug_alert.wav, etc.
+// Format: "alertType" or "alertType,+4512345678" (override destination)
+
+rule "PBX Trigger Alarm Call Example"
+when
+    // Item Security_Alert changed to ON   // Adapt to your trigger
+    Item PBX_Alarm_Result changed          // Placeholder trigger for example
+then
+    // To trigger a towing alarm call to all configured sipAlertExtensions:
+    // PBX_Alarm_Call.sendCommand("towing")
+
+    // To call a specific number with an unplug alert:
+    // PBX_Alarm_Call.sendCommand("unplug,+4512345678")
+
+    // To place a plain SIP call (no audio, just rings):
+    // PBX_Make_Call.sendCommand("200")
+
+    val result = PBX_Alarm_Result.state.toString
+    logInfo("pbx3cx", "Alarm call result: {}", result)
+end
+
+
 // ─── Daily Summary ─────────────────────────────────────────────────────────
 // Send a daily summary of call activity at end of business.
 
@@ -72,7 +169,7 @@ then
     val missed = (PBX_Missed_Count_Today.state as Number).intValue
     val total  = (PBX_Total_Calls_Today.state as Number).intValue
 
-    val summary = String::format("📊 Daily PBX Summary: %d total calls, %d missed", total, missed)
+    val summary = String::format("Daily PBX Summary: %d total calls, %d missed", total, missed)
     logInfo("pbx3cx", summary)
 
     // val telegramAction = getActions("telegram", "telegram:telegramBot:mybot")
@@ -88,7 +185,7 @@ when
     Item PBX_System_Status changed to "OFFLINE"
 then
     logWarn("pbx3cx", "3CX PBX connection lost!")
-    // sendNotification("admin@company.com", "⚠️ 3CX PBX is OFFLINE!")
+    // sendNotification("admin@company.com", "3CX PBX is OFFLINE!")
 end
 
 rule "PBX System Online"
@@ -102,7 +199,7 @@ end
 // ─── Queue Overflow Alert ──────────────────────────────────────────────────
 // Alert when too many callers are waiting in a queue.
 
-// Requires: Number PBX_Q_900_Waiting { channel="pbx3cx:queue:main:q900:qWaitingCallers" }
+// Requires: Number PBX_Q_900_Waiting { channel="pbx3cx:queue:main:q900:waitingCallers" }
 
 rule "PBX Queue Overflow"
 when

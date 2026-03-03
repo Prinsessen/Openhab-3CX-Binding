@@ -4,6 +4,8 @@
 Group gPBX "3CX Phone System" <phone> (gAll)
 
 // ── Current Call State ──────────────────────────────────────
+// Note: callerNumber is force-cleared then set on each new call to guarantee
+// a "changed" event — even for consecutive calls from the same number.
 String   PBX_Call_State      "Call Status [%s]"           <phone>      (gPBX) { channel="pbx3cx:server:main:callState" }
 String   PBX_Caller_Number   "Caller Number [%s]"         <phone>      (gPBX) { channel="pbx3cx:server:main:callerNumber" }
 String   PBX_Caller_Name     "Caller Name [%s]"           <man_3>      (gPBX) { channel="pbx3cx:server:main:callerName" }
@@ -30,6 +32,15 @@ String   PBX_System_Status  "PBX Status [%s]"    <network>  (gPBX) { channel="pb
 String   PBX_Trunk_Status   "Trunk Status [%s]"  <network>  (gPBX) { channel="pbx3cx:server:main:trunkStatus" }
 String   PBX_Recording_URL  "Recording [%s]"     <recorder> (gPBX) { channel="pbx3cx:server:main:recordingUrl" }
 
+// ── SIP Actions ─────────────────────────────────────────────
+// makeCall: send a phone number to place a SIP call (e.g. "200" or "+4512345678")
+// alarmCall: send alert type to call configured numbers with audio + DTMF confirmation
+//            format: "towing" or "unplug" or "towing,+4512345678"
+// alarmCallResult: read-only result — IDLE, IN_PROGRESS, CONFIRMED, NO_RESPONSE, ERROR
+String   PBX_Make_Call        "Make Call [%s]"        <phone>    (gPBX) { channel="pbx3cx:server:main:makeCall" }
+String   PBX_Alarm_Call       "Alarm Call [%s]"       <siren>    (gPBX) { channel="pbx3cx:server:main:alarmCall" }
+String   PBX_Alarm_Result     "Alarm Result [%s]"     <status>   (gPBX) { channel="pbx3cx:server:main:alarmCallResult" }
+
 // ── Extension Items (per extension) ─────────────────────────
 // Repeat for each extension defined in things file.
 // The channel format is: pbx3cx:extension:main:ext{NUM}:{channel}
@@ -40,14 +51,16 @@ String PBX_Ext_200_Name     "Ext 200 Name [%s]"      <man_3>  (gPBX) { channel="
 Switch PBX_Ext_200_Reg      "Ext 200 Registered [%s]" <network>(gPBX) { channel="pbx3cx:extension:main:ext200:registered" }
 
 // ── Ring Group Items ────────────────────────────────────────
-String PBX_RG_800_Name        "RG 800 Name [%s]"       <group>  (gPBX) { channel="pbx3cx:ringgroup:main:rg800:rgName" }
-String PBX_RG_800_Strategy    "RG 800 Strategy [%s]"    <settings>(gPBX) { channel="pbx3cx:ringgroup:main:rg800:rgStrategy" }
-String PBX_RG_800_Members     "RG 800 Members [%s]"     <group>  (gPBX) { channel="pbx3cx:ringgroup:main:rg800:rgMembers" }
-Number PBX_RG_800_MemberCount "RG 800 Count [%d]"       <group>  (gPBX) { channel="pbx3cx:ringgroup:main:rg800:rgMemberCount" }
+// Channel IDs: name, strategy, members, memberCount, registered
+String PBX_RG_800_Name        "RG 800 Name [%s]"       <group>  (gPBX) { channel="pbx3cx:ringgroup:main:rg800:name" }
+String PBX_RG_800_Strategy    "RG 800 Strategy [%s]"    <settings>(gPBX) { channel="pbx3cx:ringgroup:main:rg800:strategy" }
+String PBX_RG_800_Members     "RG 800 Members [%s]"     <group>  (gPBX) { channel="pbx3cx:ringgroup:main:rg800:members" }
+Number PBX_RG_800_MemberCount "RG 800 Count [%d]"       <group>  (gPBX) { channel="pbx3cx:ringgroup:main:rg800:memberCount" }
 
 // ── Queue Items ─────────────────────────────────────────────
-String PBX_Q_900_Name        "Q 900 Name [%s]"         <group>  (gPBX) { channel="pbx3cx:queue:main:q900:qName" }
-String PBX_Q_900_Strategy    "Q 900 Strategy [%s]"      <settings>(gPBX) { channel="pbx3cx:queue:main:q900:qStrategy" }
-String PBX_Q_900_Agents      "Q 900 Agents [%s]"        <group>  (gPBX) { channel="pbx3cx:queue:main:q900:qAgents" }
-Number PBX_Q_900_AgentCount  "Q 900 Count [%d]"         <group>  (gPBX) { channel="pbx3cx:queue:main:q900:qAgentCount" }
-Number PBX_Q_900_Waiting     "Q 900 Waiting [%d]"       <time>   (gPBX) { channel="pbx3cx:queue:main:q900:qWaitingCallers" }
+// Channel IDs: name, strategy, agents, agentCount, waitingCallers, registered
+String PBX_Q_900_Name        "Q 900 Name [%s]"         <group>  (gPBX) { channel="pbx3cx:queue:main:q900:name" }
+String PBX_Q_900_Strategy    "Q 900 Strategy [%s]"      <settings>(gPBX) { channel="pbx3cx:queue:main:q900:strategy" }
+String PBX_Q_900_Agents      "Q 900 Agents [%s]"        <group>  (gPBX) { channel="pbx3cx:queue:main:q900:agents" }
+Number PBX_Q_900_AgentCount  "Q 900 Count [%d]"         <group>  (gPBX) { channel="pbx3cx:queue:main:q900:agentCount" }
+Number PBX_Q_900_Waiting     "Q 900 Waiting [%d]"       <time>   (gPBX) { channel="pbx3cx:queue:main:q900:waitingCallers" }

@@ -23,6 +23,12 @@ sitemap pbx3cx label="3CX PBX" {
         Text item=PBX_Last_Missed_Time
     }
 
+    Frame label="SIP Actions" {
+        Text    item=PBX_Make_Call
+        Text    item=PBX_Alarm_Call
+        Text    item=PBX_Alarm_Result
+    }
+
     Frame label="System" {
         Text item=PBX_System_Status
         Text item=PBX_Trunk_Status
