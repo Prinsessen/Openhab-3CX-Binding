@@ -54,6 +54,8 @@ public class Pbx3cxBindingConstants {
     public static final String CHANNEL_RECORDING_URL = "recordingUrl";
     public static final String CHANNEL_SYSTEM_STATUS = "systemStatus";
     public static final String CHANNEL_MAKE_CALL = "makeCall";
+    public static final String CHANNEL_ALARM_CALL = "alarmCall";
+    public static final String CHANNEL_ALARM_CALL_RESULT = "alarmCallResult";
 
     // ─── Extension channels ────────────────────────────────────────────────
     public static final String CHANNEL_EXT_STATUS = "status";
@@ -96,7 +98,10 @@ public class Pbx3cxBindingConstants {
     public static final String API_TRUNKS = "/xapi/v1/Trunks";
     public static final String API_RING_GROUPS = "/xapi/v1/RingGroups";
     public static final String API_QUEUES = "/xapi/v1/Queues";
-    public static final String API_MAKE_CALL = "/xapi/v1/Users/Pbx.MakeCall";
+
+    // ─── SIP script defaults ───────────────────────────────────────────────
+    public static final String DEFAULT_MAKE_CALL_SCRIPT = "/etc/openhab/scripts/sip_makecall.py";
+    public static final int DEFAULT_MAKE_CALL_DURATION = 30;
 
     // ─── Defaults ──────────────────────────────────────────────────────────
     public static final int DEFAULT_PORT = 5001;

@@ -32,4 +32,6 @@ public class Pbx3cxServerConfiguration {
     public int webhookPort = 5002;
     public int recentCallsMax = 10;
     public int recentMissedCallsMax = 10;
+    public String makeCallScript = "/etc/openhab/scripts/sip_makecall.py";
+    public int makeCallDuration = 30;
 }

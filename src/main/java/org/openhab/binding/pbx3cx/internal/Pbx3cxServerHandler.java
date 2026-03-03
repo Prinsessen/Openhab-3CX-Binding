@@ -222,8 +222,18 @@ public class Pbx3cxServerHandler extends BaseBridgeHandler {
 
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
-        if (CHANNEL_MAKE_CALL.equals(channelUID.getId())) {
-            handleMakeCall(command);
+        if (command instanceof org.openhab.core.types.RefreshType) {
+            return;
+        }
+        switch (channelUID.getId()) {
+            case CHANNEL_MAKE_CALL:
+                handleMakeCall(command);
+                break;
+            case CHANNEL_ALARM_CALL:
+                handleAlarmCall(command);
+                break;
+            default:
+                break;
         }
     }
 
@@ -863,33 +873,131 @@ public class Pbx3cxServerHandler extends BaseBridgeHandler {
         }
     }
 
-    // ─── MakeCall ──────────────────────────────────────────────────────────
+    // ─── MakeCall (plain SIP call via baresip script) ───────────────────
 
     private void handleMakeCall(Command command) {
-        String cmd = command.toString();
-        String[] parts = cmd.split(",", 2);
-        if (parts.length != 2) {
-            logger.warn("MakeCall format: extension,destination (got: {})", cmd);
+        String destination = command.toString().trim();
+        if (destination.isEmpty()) {
+            logger.warn("MakeCall: empty destination");
             return;
         }
 
-        String extension = parts[0].trim();
-        String destination = parts[1].trim();
+        Pbx3cxServerConfiguration config = getConfigAs(Pbx3cxServerConfiguration.class);
+        String script = config.makeCallScript;
+        int duration = config.makeCallDuration;
 
-        Pbx3cxApiClient client = this.apiClient;
-        if (client == null) {
-            logger.warn("MakeCall: client not initialized");
+        if (script.isEmpty()) {
+            logger.warn("MakeCall: makeCallScript not configured");
             return;
         }
+
+        logger.info("MakeCall: dialing {} via {}", destination, script);
 
         scheduler.execute(() -> {
             try {
-                boolean success = client.makeCall(extension, destination);
-                if (!success) {
-                    logger.warn("MakeCall {} → {} failed", extension, destination);
+                ProcessBuilder pb = new ProcessBuilder("python3", script, destination, "--duration",
+                        String.valueOf(duration));
+                pb.redirectErrorStream(true);
+                Process process = pb.start();
+
+                // Read output in background for logging
+                String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+                boolean finished = process.waitFor(duration + 60, TimeUnit.SECONDS);
+
+                if (!finished) {
+                    logger.warn("MakeCall: script timeout — killing");
+                    process.destroyForcibly();
                 }
+
+                int exitCode = process.exitValue();
+                // Parse last RESULT: line from output
+                String lastLine = "";
+                for (String line : output.split("\n")) {
+                    if (line.startsWith("RESULT:")) {
+                        lastLine = line;
+                    }
+                }
+
+                if (exitCode == 0) {
+                    logger.info("MakeCall {} completed: {}", destination, lastLine);
+                } else {
+                    logger.warn("MakeCall {} failed (exit {}): {}", destination, exitCode, lastLine);
+                }
+
             } catch (Exception e) {
                 logger.error("MakeCall error: {}", e.getMessage());
+            }
+        });
+    }
+
+    // ─── AlarmCall (SIP call with audio + DTMF confirmation) ──────────────
+
+    private void handleAlarmCall(Command command) {
+        String cmd = command.toString().trim();
+        if (cmd.isEmpty()) {
+            logger.warn("AlarmCall: empty command");
+            return;
+        }
+
+        // Format: "alertType" or "alertType,destination"
+        String[] parts = cmd.split(",", 2);
+        String alertType = parts[0].trim();
+        String destination = parts.length > 1 ? parts[1].trim() : "";
+
+        if (alertType.isEmpty()) {
+            logger.warn("AlarmCall: alert type is required (e.g. towing, unplug, generic)");
+            return;
+        }
+
+        Pbx3cxServerConfiguration config = getConfigAs(Pbx3cxServerConfiguration.class);
+        String script = config.makeCallScript;
+
+        if (script.isEmpty()) {
+            logger.warn("AlarmCall: makeCallScript not configured");
+            updateState(CHANNEL_ALARM_CALL_RESULT, new StringType("ERROR"));
+            return;
+        }
+
+        logger.info("AlarmCall: type={}, destination={}, script={}", alertType, destination, script);
+        updateState(CHANNEL_ALARM_CALL_RESULT, new StringType("IN_PROGRESS"));
+
+        scheduler.execute(() -> {
+            try {
+                ProcessBuilder pb;
+                if (destination.isEmpty()) {
+                    // Use default destinations from SIP config
+                    pb = new ProcessBuilder("python3", script, "--alarm", alertType);
+                } else {
+                    pb = new ProcessBuilder("python3", script, destination, "--alarm", alertType);
+                }
+                pb.redirectErrorStream(true);
+                Process process = pb.start();
+
+                // Alarm calls can take up to 3 minutes (retries across multiple numbers)
+                String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+                boolean finished = process.waitFor(180, TimeUnit.SECONDS);
+
+                if (!finished) {
+                    logger.warn("AlarmCall: script timeout — killing");
+                    process.destroyForcibly();
+                    updateState(CHANNEL_ALARM_CALL_RESULT, new StringType("ERROR"));
+                    return;
+                }
+
+                // Parse RESULT: line from output
+                String result = "ERROR";
+                for (String line : output.split("\n")) {
+                    if (line.startsWith("RESULT:")) {
+                        result = line.substring(7).trim();
+                    }
+                }
+
+                logger.info("AlarmCall {} result: {} (exit {})", alertType, result, process.exitValue());
+                updateState(CHANNEL_ALARM_CALL_RESULT, new StringType(result));
+
+            } catch (Exception e) {
+                logger.error("AlarmCall error: {}", e.getMessage());
+                updateState(CHANNEL_ALARM_CALL_RESULT, new StringType("ERROR"));
             }
         });
     }

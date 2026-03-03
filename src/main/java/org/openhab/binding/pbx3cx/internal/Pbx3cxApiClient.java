@@ -377,40 +377,6 @@ public class Pbx3cxApiClient {
     }
 
     /**
-     * Initiate a call via xAPI MakeCall.
-     *
-     * @param extension the extension that will ring first
-     * @param destination the number to dial when picked up
-     * @return true on success
-     */
-    public boolean makeCall(String extension, String destination) throws IOException, InterruptedException {
-        if (!ensureAuthenticated()) {
-            logger.warn("MakeCall failed: not authenticated");
-            return false;
-        }
-
-        JsonObject body = new JsonObject();
-        body.addProperty("dn", extension);
-        body.addProperty("destination", destination);
-        body.addProperty("testCall", false);
-        body.addProperty("contact", "");
-
-        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(baseUrl + Pbx3cxBindingConstants.API_MAKE_CALL))
-                .POST(HttpRequest.BodyPublishers.ofString(body.toString())).header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + accessToken).timeout(Duration.ofSeconds(10)).build();
-
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
-        if (response.statusCode() >= 200 && response.statusCode() < 300) {
-            logger.info("MakeCall: {} → {} SUCCESS", extension, destination);
-            return true;
-        } else {
-            logger.warn("MakeCall failed: HTTP {} {}", response.statusCode(), truncate(response.body(), 200));
-            return false;
-        }
-    }
-
-    /**
      * Execute an authenticated GET request to the xAPI.
      */
     private @Nullable String apiGet(String path) throws IOException, InterruptedException {

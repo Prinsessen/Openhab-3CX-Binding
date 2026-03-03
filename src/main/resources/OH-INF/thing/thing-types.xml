@@ -40,12 +40,15 @@
 
 			<!-- Actions -->
 			<channel id="makeCall" typeId="makeCall"/>
+			<channel id="alarmCall" typeId="alarmCall"/>
+			<channel id="alarmCallResult" typeId="alarmCallResult"/>
 		</channels>
 
 		<config-description>
 			<parameter name="hostname" type="text" required="true">
 				<label>Hostname</label>
 				<description>3CX server hostname or IP address</description>
+				<default>192.168.100.11</default>
 			</parameter>
 			<parameter name="port" type="integer" required="false">
 				<label>Port</label>
@@ -95,6 +98,16 @@
 				<label>Missed Calls Max</label>
 				<description>Maximum number of missed calls to keep in history</description>
 				<default>10</default>
+			</parameter>
+			<parameter name="makeCallScript" type="text" required="false">
+				<label>SIP Call Script</label>
+				<description>Path to the sip_makecall.py script for MakeCall and AlarmCall</description>
+				<default>/etc/openhab/scripts/sip_makecall.py</default>
+			</parameter>
+			<parameter name="makeCallDuration" type="integer" required="false">
+				<label>Call Duration</label>
+				<description>Default duration in seconds for plain SIP calls</description>
+				<default>30</default>
 			</parameter>
 		</config-description>
 	</bridge-type>
@@ -337,7 +350,29 @@
 	<channel-type id="makeCall">
 		<item-type>String</item-type>
 		<label>Make Call</label>
-		<description>Initiate a call. Format: extension,destination (e.g. 200,+4512345678)</description>
+		<description>Place a SIP call via baresip. Send destination number (e.g. 200, +4512345678)</description>
+	</channel-type>
+
+	<channel-type id="alarmCall">
+		<item-type>String</item-type>
+		<label>Alarm Call</label>
+		<description>Place an alarm call with audio and DTMF confirmation. Format: alertType or alertType,destination (e.g.
+			towing, unplug,+4520960210)</description>
+	</channel-type>
+
+	<channel-type id="alarmCallResult">
+		<item-type>String</item-type>
+		<label>Alarm Call Result</label>
+		<description>Result of the last alarm call: CONFIRMED, NO_RESPONSE, ERROR, IN_PROGRESS, IDLE</description>
+		<state readOnly="true">
+			<options>
+				<option value="IDLE">Idle</option>
+				<option value="IN_PROGRESS">In Progress</option>
+				<option value="CONFIRMED">Confirmed</option>
+				<option value="NO_RESPONSE">No Response</option>
+				<option value="ERROR">Error</option>
+			</options>
+		</state>
 	</channel-type>
 
 	<!-- Extension channels -->
