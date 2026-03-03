@@ -377,6 +377,44 @@ public class Pbx3cxApiClient {
     }
 
     /**
+     * Resolve the real external caller number for an inbound trunk call.
+     * <p>
+     * The ActiveCalls endpoint only exposes trunk DID (called number) in the Caller string,
+     * not the real external caller number. This method queries CallHistoryView which has the
+     * actual SrcCallerNumber for inbound calls.
+     *
+     * @param trunkDn the trunk DN (e.g. "10002")
+     * @return the external caller number (e.g. "22162460"), or null if not found
+     */
+    public @Nullable String resolveExternalCallerNumber(String trunkDn) {
+        try {
+            // Query most recent call history segments for this trunk, ordered newest first
+            String path = Pbx3cxBindingConstants.API_CALL_HISTORY
+                    + "?$top=5&$orderby=SegmentId%20desc&$filter=SrcDn%20eq%20'" + trunkDn
+                    + "'&$select=SegmentId,SrcCallerNumber,SrcDn,DstDn,SegmentStartTime";
+            String json = apiGet(path);
+            if (json == null) {
+                return null;
+            }
+
+            JsonObject root = JsonParser.parseString(json).getAsJsonObject();
+            JsonArray values = root.getAsJsonArray("value");
+            if (values != null && values.size() > 0) {
+                // Return the SrcCallerNumber from the most recent segment
+                JsonObject first = values.get(0).getAsJsonObject();
+                String callerNumber = getJsonString(first, "SrcCallerNumber");
+                if (callerNumber != null && !callerNumber.isEmpty() && !callerNumber.startsWith("Ext.")) {
+                    logger.debug("Resolved external caller for trunk {}: {}", trunkDn, callerNumber);
+                    return callerNumber;
+                }
+            }
+        } catch (Exception e) {
+            logger.debug("Failed to resolve external caller for trunk {}: {}", trunkDn, e.getMessage());
+        }
+        return null;
+    }
+
+    /**
      * Execute an authenticated GET request to the xAPI.
      */
     private @Nullable String apiGet(String path) throws IOException, InterruptedException {

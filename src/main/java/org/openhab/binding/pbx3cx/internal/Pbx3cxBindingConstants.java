@@ -94,6 +94,7 @@ public class Pbx3cxBindingConstants {
     // ─── API paths ─────────────────────────────────────────────────────────
     public static final String API_LOGIN = "/webclient/api/Login/GetAccessToken";
     public static final String API_ACTIVE_CALLS = "/xapi/v1/ActiveCalls";
+    public static final String API_CALL_HISTORY = "/xapi/v1/CallHistoryView";
     public static final String API_USERS = "/xapi/v1/Users";
     public static final String API_TRUNKS = "/xapi/v1/Trunks";
     public static final String API_RING_GROUPS = "/xapi/v1/RingGroups";

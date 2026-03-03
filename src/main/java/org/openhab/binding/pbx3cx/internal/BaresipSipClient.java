@@ -129,10 +129,13 @@ public class BaresipSipClient {
     private String executePlainCall(String destination) {
         logger.info("Plain call to {} (duration: {}s)", destination, makeCallDuration);
 
-        writeBaresipConfig("/dev/null");
+        // Create a real silence WAV so baresip sends proper RTP (required for external calls through PBX)
+        Path silenceWav = createSilenceWav(makeCallDuration + 30);
+        writeBaresipConfig(silenceWav.toString());
 
         Process proc = startBaresip();
         if (proc == null) {
+            deleteTempFile(silenceWav);
             return RESULT_CALL_FAILED;
         }
 
@@ -181,6 +184,7 @@ public class BaresipSipClient {
         } finally {
             shutdownBaresip(proc);
             reader.interrupt();
+            deleteTempFile(silenceWav);
         }
     }
 
@@ -645,6 +649,59 @@ public class BaresipSipClient {
         writeInt16LE(out, bitsPerSample);
         out.write("data".getBytes(StandardCharsets.US_ASCII));
         writeInt32LE(out, dataSize);
+    }
+
+    /**
+     * Create a WAV file containing silence for the specified duration.
+     * <p>
+     * baresip's aufile module requires a real WAV file to send proper RTP.
+     * Using /dev/null causes baresip to fail opening the audio source, which means
+     * no RTP is sent and the PBX may route the call incorrectly (e.g. to voicemail).
+     *
+     * @param durationSeconds Duration of silence in seconds
+     * @return Path to the silence WAV temp file
+     */
+    private Path createSilenceWav(int durationSeconds) {
+        try {
+            int sampleRate = 8000;
+            int channels = 1;
+            int bitsPerSample = 16;
+            int dataSize = durationSeconds * sampleRate * channels * (bitsPerSample / 8);
+
+            Path silencePath = Files.createTempFile("sip_silence_", ".wav");
+
+            try (OutputStream out = Files.newOutputStream(silencePath)) {
+                writeWavHeader(out, dataSize, channels, sampleRate, bitsPerSample);
+                // Write silence in 8KB chunks to avoid huge allocations
+                byte[] chunk = new byte[8192];
+                int remaining = dataSize;
+                while (remaining > 0) {
+                    int toWrite = Math.min(chunk.length, remaining);
+                    out.write(chunk, 0, toWrite);
+                    remaining -= toWrite;
+                }
+            }
+
+            logger.debug("Created silence WAV: {}s ({}KB)", durationSeconds, dataSize / 1024);
+            return silencePath;
+
+        } catch (IOException e) {
+            logger.error("Failed to create silence WAV: {}", e.getMessage());
+            return Path.of("/dev/null"); // fallback
+        }
+    }
+
+    /**
+     * Delete a temporary file, ignoring errors.
+     */
+    private void deleteTempFile(Path path) {
+        try {
+            if (path != null && path.toString().contains("sip_")) {
+                Files.deleteIfExists(path);
+            }
+        } catch (IOException e) {
+            logger.debug("Failed to delete temp file {}: {}", path, e.getMessage());
+        }
     }
 
     // ─── Byte Utilities ────────────────────────────────────────────────────

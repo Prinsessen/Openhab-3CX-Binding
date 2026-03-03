@@ -319,12 +319,31 @@ public class Pbx3cxServerHandler extends BaseBridgeHandler {
                 logger.info("NEW CALL [{}]: {} ({}) → {} ({}) [{}]", direction, caller.getExtension(), caller.getName(),
                         callee.getExtension(), callee.getName(), status);
 
+                // For inbound trunk calls, resolve the real external caller number
+                // from CallHistoryView (ActiveCalls only shows DID, not caller).
+                // IMPORTANT: Resolve BEFORE updating CHANNEL_CALL_STATE, because
+                // rules trigger on state change and read CHANNEL_CALLER_NUMBER immediately.
+                String callerNumber;
+                String callerName;
+                if (caller.isTrunk()) {
+                    Pbx3cxApiClient client = this.apiClient;
+                    String resolved = client != null ? client.resolveExternalCallerNumber(caller.getExtension()) : null;
+                    callerNumber = resolved != null ? resolved : caller.getExternalNumber();
+                    callerName = caller.getProviderName();
+                    if (resolved != null) {
+                        logger.info("CALLER ID RESOLVED: trunk {} → external caller {}", caller.getExtension(),
+                                resolved);
+                    }
+                } else {
+                    callerNumber = caller.getExtension();
+                    callerName = caller.getName();
+                }
+
+                updateState(CHANNEL_CALLER_NUMBER, new StringType(callerNumber));
+                updateState(CHANNEL_CALLER_NAME, new StringType(callerName));
+
                 currentCallState = state;
                 updateState(CHANNEL_CALL_STATE, new StringType(state));
-                updateState(CHANNEL_CALLER_NUMBER,
-                        new StringType(caller.isTrunk() ? caller.getExternalNumber() : caller.getExtension()));
-                updateState(CHANNEL_CALLER_NAME,
-                        new StringType(caller.isTrunk() ? caller.getProviderName() : caller.getName()));
                 updateState(CHANNEL_CALLED_NUMBER,
                         new StringType(callee.isTrunk() ? callee.getExternalNumber() : callee.getExtension()));
                 updateState(CHANNEL_CALL_DIRECTION, new StringType(direction));
@@ -386,7 +405,14 @@ public class Pbx3cxServerHandler extends BaseBridgeHandler {
                 boolean wasAnswered = "Talking".equals(prevStatus) && !callee.isVoiceMail() && !callee.isRouter();
 
                 // Resolve display names for caller and callee
-                String callerNum = caller.isTrunk() ? caller.getExternalNumber() : caller.getExtension();
+                String callerNum;
+                if (caller.isTrunk()) {
+                    Pbx3cxApiClient client = this.apiClient;
+                    String resolved = client != null ? client.resolveExternalCallerNumber(caller.getExtension()) : null;
+                    callerNum = resolved != null ? resolved : caller.getExternalNumber();
+                } else {
+                    callerNum = caller.getExtension();
+                }
                 String callerNm = caller.isTrunk() ? caller.getProviderName() : caller.getName();
                 String calledNum;
                 String calledNm;
@@ -497,7 +523,16 @@ public class Pbx3cxServerHandler extends BaseBridgeHandler {
 
             JsonObject obj = new JsonObject();
             obj.addProperty("id", call.getId());
-            obj.addProperty("callerNumber", caller.isTrunk() ? caller.getExternalNumber() : caller.getExtension());
+            // Resolve real external caller number for trunk calls
+            String jsonCallerNumber;
+            if (caller.isTrunk()) {
+                Pbx3cxApiClient client = this.apiClient;
+                String resolved = client != null ? client.resolveExternalCallerNumber(caller.getExtension()) : null;
+                jsonCallerNumber = resolved != null ? resolved : caller.getExternalNumber();
+            } else {
+                jsonCallerNumber = caller.getExtension();
+            }
+            obj.addProperty("callerNumber", jsonCallerNumber);
             obj.addProperty("callerName", caller.isTrunk() ? caller.getProviderName() : caller.getName());
             obj.addProperty("calledNumber", calledNum);
             obj.addProperty("calledName", calledNm);
