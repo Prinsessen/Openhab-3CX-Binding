@@ -99,10 +99,6 @@ public class Pbx3cxBindingConstants {
     public static final String API_RING_GROUPS = "/xapi/v1/RingGroups";
     public static final String API_QUEUES = "/xapi/v1/Queues";
 
-    // ─── SIP script defaults ───────────────────────────────────────────────
-    public static final String DEFAULT_MAKE_CALL_SCRIPT = "/etc/openhab/scripts/sip_makecall.py";
-    public static final int DEFAULT_MAKE_CALL_DURATION = 30;
-
     // ─── Defaults ──────────────────────────────────────────────────────────
     public static final int DEFAULT_PORT = 5001;
     public static final int DEFAULT_POLL_INTERVAL = 2;

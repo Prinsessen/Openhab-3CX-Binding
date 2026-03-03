@@ -99,10 +99,36 @@
 				<description>Maximum number of missed calls to keep in history</description>
 				<default>10</default>
 			</parameter>
-			<parameter name="makeCallScript" type="text" required="false">
-				<label>SIP Call Script</label>
-				<description>Path to the sip_makecall.py script for MakeCall and AlarmCall</description>
-				<default>/etc/openhab/scripts/sip_makecall.py</default>
+			<parameter name="sipServer" type="text" required="false">
+				<label>SIP Server</label>
+				<description>SIP server hostname or IP for baresip registration (e.g. 192.168.100.11)</description>
+			</parameter>
+			<parameter name="sipExtension" type="text" required="false">
+				<label>SIP Extension</label>
+				<description>SIP extension number for baresip (e.g. 600)</description>
+			</parameter>
+			<parameter name="sipAuthUser" type="text" required="false">
+				<label>SIP Auth User</label>
+				<description>SIP authentication username</description>
+			</parameter>
+			<parameter name="sipAuthPass" type="text" required="false">
+				<label>SIP Auth Password</label>
+				<description>SIP authentication password</description>
+				<context>password</context>
+			</parameter>
+			<parameter name="sipAlertExtensions" type="text" required="false">
+				<label>Alert Extensions</label>
+				<description>Comma-separated phone numbers to call for alarms (e.g. +4520960210,+4554584471)</description>
+			</parameter>
+			<parameter name="sipMaxRingTime" type="integer" required="false">
+				<label>Max Ring Time</label>
+				<description>Maximum seconds to wait for answer before trying next number</description>
+				<default>30</default>
+			</parameter>
+			<parameter name="sipAudioPath" type="text" required="false">
+				<label>Alert Audio Path</label>
+				<description>Directory containing alert WAV files (towing_alert.wav, unplug_alert.wav, etc.)</description>
+				<default>/etc/openhab/sounds/alerts</default>
 			</parameter>
 			<parameter name="makeCallDuration" type="integer" required="false">
 				<label>Call Duration</label>

@@ -94,6 +94,9 @@ public class Pbx3cxServerHandler extends BaseBridgeHandler {
     private Map<String, RingGroupState> ringGroupStates = new HashMap<>();
     private Map<String, QueueState> queueStates = new HashMap<>();
 
+    // SIP client for MakeCall/AlarmCall via baresip
+    private @Nullable BaresipSipClient sipClient;
+
     // Call state
     private String currentCallState = STATE_IDLE;
     private int missedCountToday = 0;
@@ -169,6 +172,16 @@ public class Pbx3cxServerHandler extends BaseBridgeHandler {
         // Restore call history from disk
         loadCallHistory();
 
+        // Initialize SIP client for MakeCall/AlarmCall
+        BaresipSipClient sip = new BaresipSipClient(config);
+        if (sip.isConfigured()) {
+            this.sipClient = sip;
+            logger.info("SIP client configured: ext {} -> {}", config.sipExtension, config.sipServer);
+        } else {
+            this.sipClient = null;
+            logger.info("SIP client not configured — MakeCall/AlarmCall disabled");
+        }
+
         // Start polling jobs
         int pollInterval = Math.max(1, config.pollInterval);
         int presenceInterval = Math.max(5, config.presenceInterval);
@@ -218,6 +231,7 @@ public class Pbx3cxServerHandler extends BaseBridgeHandler {
         queueStates.clear();
         recentCalls.clear();
         recentMissedCalls.clear();
+        sipClient = null;
     }
 
     @Override
@@ -873,7 +887,7 @@ public class Pbx3cxServerHandler extends BaseBridgeHandler {
         }
     }
 
-    // ─── MakeCall (plain SIP call via baresip script) ───────────────────
+    // ─── MakeCall (plain SIP call via baresip) ─────────────────────────────
 
     private void handleMakeCall(Command command) {
         String destination = command.toString().trim();
@@ -882,51 +896,17 @@ public class Pbx3cxServerHandler extends BaseBridgeHandler {
             return;
         }
 
-        Pbx3cxServerConfiguration config = getConfigAs(Pbx3cxServerConfiguration.class);
-        String script = config.makeCallScript;
-        int duration = config.makeCallDuration;
-
-        if (script.isEmpty()) {
-            logger.warn("MakeCall: makeCallScript not configured");
+        BaresipSipClient client = this.sipClient;
+        if (client == null) {
+            logger.warn("MakeCall: SIP not configured — set sipServer/sipExtension/sipAuthUser/sipAuthPass");
             return;
         }
 
-        logger.info("MakeCall: dialing {} via {}", destination, script);
+        logger.info("MakeCall: dialing {}", destination);
 
         scheduler.execute(() -> {
-            try {
-                ProcessBuilder pb = new ProcessBuilder("python3", script, destination, "--duration",
-                        String.valueOf(duration));
-                pb.redirectErrorStream(true);
-                Process process = pb.start();
-
-                // Read output in background for logging
-                String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-                boolean finished = process.waitFor(duration + 60, TimeUnit.SECONDS);
-
-                if (!finished) {
-                    logger.warn("MakeCall: script timeout — killing");
-                    process.destroyForcibly();
-                }
-
-                int exitCode = process.exitValue();
-                // Parse last RESULT: line from output
-                String lastLine = "";
-                for (String line : output.split("\n")) {
-                    if (line.startsWith("RESULT:")) {
-                        lastLine = line;
-                    }
-                }
-
-                if (exitCode == 0) {
-                    logger.info("MakeCall {} completed: {}", destination, lastLine);
-                } else {
-                    logger.warn("MakeCall {} failed (exit {}): {}", destination, exitCode, lastLine);
-                }
-
-            } catch (Exception e) {
-                logger.error("MakeCall error: {}", e.getMessage());
-            }
+            String result = client.makePlainCall(destination);
+            logger.info("MakeCall {}: {}", destination, result);
         });
     }
 
@@ -942,63 +922,27 @@ public class Pbx3cxServerHandler extends BaseBridgeHandler {
         // Format: "alertType" or "alertType,destination"
         String[] parts = cmd.split(",", 2);
         String alertType = parts[0].trim();
-        String destination = parts.length > 1 ? parts[1].trim() : "";
+        String destination = parts.length > 1 ? parts[1].trim() : null;
 
         if (alertType.isEmpty()) {
             logger.warn("AlarmCall: alert type is required (e.g. towing, unplug, generic)");
             return;
         }
 
-        Pbx3cxServerConfiguration config = getConfigAs(Pbx3cxServerConfiguration.class);
-        String script = config.makeCallScript;
-
-        if (script.isEmpty()) {
-            logger.warn("AlarmCall: makeCallScript not configured");
+        BaresipSipClient client = this.sipClient;
+        if (client == null) {
+            logger.warn("AlarmCall: SIP not configured — set sipServer/sipExtension/sipAuthUser/sipAuthPass");
             updateState(CHANNEL_ALARM_CALL_RESULT, new StringType("ERROR"));
             return;
         }
 
-        logger.info("AlarmCall: type={}, destination={}, script={}", alertType, destination, script);
+        logger.info("AlarmCall: type={}, destination={}", alertType, destination != null ? destination : "(config)");
         updateState(CHANNEL_ALARM_CALL_RESULT, new StringType("IN_PROGRESS"));
 
         scheduler.execute(() -> {
-            try {
-                ProcessBuilder pb;
-                if (destination.isEmpty()) {
-                    // Use default destinations from SIP config
-                    pb = new ProcessBuilder("python3", script, "--alarm", alertType);
-                } else {
-                    pb = new ProcessBuilder("python3", script, destination, "--alarm", alertType);
-                }
-                pb.redirectErrorStream(true);
-                Process process = pb.start();
-
-                // Alarm calls can take up to 3 minutes (retries across multiple numbers)
-                String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-                boolean finished = process.waitFor(180, TimeUnit.SECONDS);
-
-                if (!finished) {
-                    logger.warn("AlarmCall: script timeout — killing");
-                    process.destroyForcibly();
-                    updateState(CHANNEL_ALARM_CALL_RESULT, new StringType("ERROR"));
-                    return;
-                }
-
-                // Parse RESULT: line from output
-                String result = "ERROR";
-                for (String line : output.split("\n")) {
-                    if (line.startsWith("RESULT:")) {
-                        result = line.substring(7).trim();
-                    }
-                }
-
-                logger.info("AlarmCall {} result: {} (exit {})", alertType, result, process.exitValue());
-                updateState(CHANNEL_ALARM_CALL_RESULT, new StringType(result));
-
-            } catch (Exception e) {
-                logger.error("AlarmCall error: {}", e.getMessage());
-                updateState(CHANNEL_ALARM_CALL_RESULT, new StringType("ERROR"));
-            }
+            String result = client.makeAlarmCall(alertType, destination);
+            logger.info("AlarmCall {}: {}", alertType, result);
+            updateState(CHANNEL_ALARM_CALL_RESULT, new StringType(result));
         });
     }
 

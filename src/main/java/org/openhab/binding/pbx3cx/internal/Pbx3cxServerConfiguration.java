@@ -32,6 +32,14 @@ public class Pbx3cxServerConfiguration {
     public int webhookPort = 5002;
     public int recentCallsMax = 10;
     public int recentMissedCallsMax = 10;
-    public String makeCallScript = "/etc/openhab/scripts/sip_makecall.py";
+
+    // SIP / Baresip configuration (for MakeCall and AlarmCall channels)
+    public String sipServer = "";
+    public String sipExtension = "";
+    public String sipAuthUser = "";
+    public String sipAuthPass = "";
+    public String sipAlertExtensions = "";
+    public int sipMaxRingTime = 30;
+    public String sipAudioPath = "/etc/openhab/sounds/alerts";
     public int makeCallDuration = 30;
 }
