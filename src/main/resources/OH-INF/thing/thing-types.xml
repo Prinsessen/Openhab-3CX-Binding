@@ -48,7 +48,6 @@
 			<parameter name="hostname" type="text" required="true">
 				<label>Hostname</label>
 				<description>3CX server hostname or IP address</description>
-				<default>192.168.100.11</default>
 			</parameter>
 			<parameter name="port" type="integer" required="false">
 				<label>Port</label>
@@ -101,7 +100,7 @@
 			</parameter>
 			<parameter name="sipServer" type="text" required="false">
 				<label>SIP Server</label>
-				<description>SIP server hostname or IP for baresip registration (e.g. 192.168.100.11)</description>
+				<description>SIP server hostname or IP for baresip registration</description>
 			</parameter>
 			<parameter name="sipExtension" type="text" required="false">
 				<label>SIP Extension</label>
@@ -118,7 +117,7 @@
 			</parameter>
 			<parameter name="sipAlertExtensions" type="text" required="false">
 				<label>Alert Extensions</label>
-				<description>Comma-separated phone numbers to call for alarms (e.g. +4520960210,+4554584471)</description>
+				<description>Comma-separated phone numbers to call for alarms (e.g. +45XXXXXXXX,+45YYYYYYYY)</description>
 			</parameter>
 			<parameter name="sipMaxRingTime" type="integer" required="false">
 				<label>Max Ring Time</label>
@@ -383,7 +382,7 @@
 		<item-type>String</item-type>
 		<label>Alarm Call</label>
 		<description>Place an alarm call with audio and DTMF confirmation. Format: alertType or alertType,destination (e.g.
-			towing, unplug,+4520960210)</description>
+			towing, unplug,+45XXXXXXXX)</description>
 	</channel-type>
 
 	<channel-type id="alarmCallResult">

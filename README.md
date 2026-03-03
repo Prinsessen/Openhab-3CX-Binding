@@ -100,6 +100,16 @@ The bridge connects to your 3CX PBX server and polls for call activity.
 | `webhookPort`          | Integer | No       | 5002    | CRM/CFD webhook listener port (0 = disabled)             |
 | `recentCallsMax`       | Integer | No       | 10      | Maximum number of recent calls to keep in history        |
 | `recentMissedCallsMax` | Integer | No       | 10      | Maximum number of missed calls to keep in history        |
+| `sipServer`            | String  | No       |         | SIP server hostname/IP for baresip (enables alarm calls) |
+| `sipExtension`         | String  | No       |         | SIP extension number (e.g. `600`)                        |
+| `sipAuthUser`          | String  | No       |         | SIP authentication username                              |
+| `sipAuthPass`          | String  | No       |         | SIP authentication password                              |
+| `sipAlertExtensions`   | String  | No       |         | Comma-separated phone numbers for alarm calls            |
+| `sipMaxRingTime`       | Integer | No       | 30      | Max seconds to wait for call answer                      |
+| `sipAudioPath`         | String  | No       | `/etc/openhab/sounds/alerts` | Directory containing alert WAV files |
+| `makeCallDuration`     | Integer | No       | 30      | Default call duration in seconds for plain calls         |
+
+> **SIP Note:** The SIP parameters (`sipServer`, `sipExtension`, `sipAuthUser`, `sipAuthPass`) are required for `makeCall` and `alarmCall` functionality. The binding uses an embedded [baresip](https://github.com/baresip/baresip) SIP client — see [SIP / Alarm Calls](#sip--alarm-calls) for details.
 
 **Example** (`things/pbx3cx.things`):
 
@@ -108,14 +118,22 @@ Bridge pbx3cx:server:main "3CX PBX" [
     hostname="your-3cx-server.example.com",
     port=5001,
     username="600",
-    password="your-password-here",
+    password="your-xapi-password",
     pollInterval=2,
     presenceInterval=30,
     trunkInterval=60,
     verifySsl=true,
     webhookPort=0,
     recentCallsMax=20,
-    recentMissedCallsMax=20
+    recentMissedCallsMax=20,
+    sipServer="192.168.x.x",
+    sipExtension="600",
+    sipAuthUser="your-sip-user",
+    sipAuthPass="your-sip-password",
+    sipAlertExtensions="+45XXXXXXXX,+45YYYYYYYY",
+    sipMaxRingTime=30,
+    sipAudioPath="/etc/openhab/sounds/alerts",
+    makeCallDuration=30
 ] {
     // Extensions
     Thing extension ext200 "200 John Doe"       [ extensionNumber="200" ]
@@ -182,7 +200,9 @@ Extensions can also be auto-discovered — go to **Settings → Things → 3CX P
 | `trunkStatus`          | String   | SIP trunk status summary                             |
 | `recordingUrl`         | String   | URL to the last call recording                       |
 | `systemStatus`         | String   | PBX connection status: `ONLINE`, `OFFLINE`           |
-| `makeCall`             | String   | Send a command to initiate a call                    |
+| `makeCall`             | String   | Send a command to initiate a SIP call (destination number) |
+| `alarmCall`            | String   | Trigger alarm call with audio + DTMF confirmation (see below) |
+| `alarmCallResult`      | String   | Result of last alarm call: `CONFIRMED`, `NO_ANSWER`, `FAILED` |
 
 ### Extension Channels
 
@@ -244,6 +264,11 @@ Number PBX_Active_Calls             "Active Calls [%d]"          <phone> (gPBX) 
 String PBX_Active_Calls_Json        "Active Calls JSON [%s]"     <phone> (gPBX) { channel="pbx3cx:server:main:activeCallsJson" }
 String PBX_Recent_Calls_Json        "Recent Calls JSON [%s]"     <phone> (gPBX) { channel="pbx3cx:server:main:recentCallsJson" }
 String PBX_Recent_Missed_Calls_Json "Missed Calls JSON [%s]"     <phone> (gPBX) { channel="pbx3cx:server:main:recentMissedCallsJson" }
+
+// SIP / Alarm calls
+String PBX_Make_Call       "Make Call [%s]"      <phone>   (gPBX) { channel="pbx3cx:server:main:makeCall" }
+String PBX_Alarm_Call      "Alarm Call [%s]"     <siren>   (gPBX) { channel="pbx3cx:server:main:alarmCall" }
+String PBX_Alarm_Result    "Alarm Result [%s]"   <text>    (gPBX) { channel="pbx3cx:server:main:alarmCallResult" }
 
 // System
 String PBX_System_Status   "PBX Status [%s]"     <network> (gPBX) { channel="pbx3cx:server:main:systemStatus" }
@@ -357,6 +382,43 @@ when
     Item PBX_Ext_200_Status changed
 then
     logInfo("pbx", "Ext 200 status: {}", PBX_Ext_200_Status.state.toString)
+end
+```
+
+### Alarm Call — Vehicle Towing Alert
+
+```java
+rule "Vehicle Towing Alert"
+when
+    Item Vehicle_GPS_Towing received update ON
+then
+    logWarn("pbx", "Towing detected! Triggering alarm call")
+    PBX_Alarm_Call.sendCommand("towing")  // plays towing_alert.wav, calls sipAlertExtensions
+end
+
+rule "Alarm Call Result"
+when
+    Item PBX_Alarm_Result changed
+then
+    val result = PBX_Alarm_Result.state.toString
+    logInfo("pbx", "Alarm call result: {}", result)
+    if (result == "CONFIRMED") {
+        logInfo("pbx", "Alert acknowledged by user via DTMF")
+    } else if (result == "NO_ANSWER") {
+        logWarn("pbx", "No one confirmed the alarm call!")
+        // Retry or escalate
+    }
+end
+```
+
+### Plain SIP Call
+
+```java
+rule "Call Extension on Event"
+when
+    Item Doorbell_Button received update ON
+then
+    PBX_Make_Call.sendCommand("+45XXXXXXXX")  // calls number for makeCallDuration seconds
 end
 ```
 
@@ -479,6 +541,64 @@ Set `webhookPort=0` to disable the webhook listener.
 
 ---
 
+## SIP / Alarm Calls
+
+The binding includes a native SIP client powered by [baresip](https://github.com/baresip/baresip) for making outbound calls directly from openHAB — no external scripts required.
+
+### Requirements
+
+- **baresip** must be installed on the openHAB server:
+  ```bash
+  sudo apt install baresip
+  ```
+
+### How It Works
+
+When SIP parameters are configured on the bridge, the binding initialises an embedded `BaresipSipClient` that manages the full SIP lifecycle:
+
+1. **Writes baresip config** to `<OPENHAB_USERDATA>/pbx3cx/baresip/` with SIP account, audio settings, and transport
+2. **Launches baresip** as a subprocess, registers with the SIP server
+3. **Dials the destination** and monitors stdout for call events
+4. **For alarm calls:** Plays a WAV audio file over SIP (RTP) and listens for DTMF key press (`1`) as acknowledgement
+
+### Channels
+
+| Channel           | Direction | Description |
+|-------------------|-----------|-------------|
+| `makeCall`        | Command   | Send a phone number to initiate a plain SIP call (rings for `makeCallDuration` seconds, then hangs up) |
+| `alarmCall`       | Command   | Send an alert type (`towing`, `unplug`, or `generic`) to call all `sipAlertExtensions` with audio + DTMF confirmation |
+| `alarmCallResult` | State     | Updated after alarm call completes: `CONFIRMED` (DTMF received), `NO_ANSWER` (no answer/no DTMF), or `FAILED` |
+
+### Alert Types
+
+The `alarmCall` channel accepts an alert type string that maps to a WAV file in `sipAudioPath`:
+
+| Alert Type | Audio File          | Description                |
+|------------|---------------------|----------------------------|
+| `towing`   | `towing_alert.wav`  | Vehicle towing detection   |
+| `unplug`   | `unplug_alert.wav`  | GPS tracker disconnected   |
+| `generic`  | `towing_alert.wav`  | Fallback alert audio       |
+
+The WAV file is automatically extended to ~60 seconds (looped) to maintain RTP keepalive during the call.
+
+### Call Flow (Alarm Call)
+
+```
+alarmCall("towing") received
+  → For each number in sipAlertExtensions:
+      1. Start baresip with SIP account config
+      2. Register with SIP server (wait for "100 Trying")
+      3. Dial destination number
+      4. Wait for answer (up to sipMaxRingTime seconds)
+      5. Play audio over RTP (towing_alert.wav, extended to ~60s)
+      6. Listen for DTMF digit "1" (confirmation)
+      7. If DTMF "1" received → alarmCallResult = CONFIRMED, stop
+      8. If no answer or no DTMF → try next number
+  → If no number confirmed → alarmCallResult = NO_ANSWER
+```
+
+---
+
 ## Building from Source
 
 **CRITICAL:** Build in the openHAB-Addons repository where all dependencies are available.
@@ -517,11 +637,18 @@ org.openhab.binding.pbx3cx/
 │   │   ├── Missed/total call tracking with midnight reset
 │   │   ├── JSON builders for active/recent/missed calls
 │   │   ├── File-based call history persistence
+│   │   ├── SIP makeCall / alarmCall via BaresipSipClient
 │   │   └── Child handler notification for extensions/RG/queues
 │   ├── Pbx3cxApiClient.java             — REST client for 3CX xAPI (~470 lines)
 │   │   ├── JWT authentication with 60s auto-refresh
 │   │   ├── Active calls, extensions, trunks, ring groups, queues
 │   │   └── Ring group members, queue agents
+│   ├── BaresipSipClient.java            — Native SIP client (~500 lines)
+│   │   ├── Baresip process lifecycle management
+│   │   ├── SIP registration and call dialing
+│   │   ├── DTMF detection for alarm acknowledgement
+│   │   ├── WAV audio extension (loop to ~60s for RTP keepalive)
+│   │   └── Multi-number sequential retry for alarm calls
 │   ├── Pbx3cxExtensionHandler.java      — Extension child handler
 │   ├── Pbx3cxExtensionConfiguration.java
 │   ├── Pbx3cxRingGroupHandler.java      — Ring group child handler
@@ -599,6 +726,15 @@ NEW CALL → "Routing" (ROUTER)
 - Ensure the items are created and linked to channels
 - Check browser console for REST API errors
 - Verify the dashboard URL: `http://your-openhab:8080/static/3cx_dashboard.html`
+
+### Alarm Calls Not Working
+
+- Verify `baresip` is installed: `which baresip`
+- Check SIP credentials match your PBX extension configuration
+- Ensure the SIP extension is not registered elsewhere (only one registration allowed)
+- Verify WAV files exist in `sipAudioPath` directory
+- Check logs: `grep -i "baresip\|alarm.*call\|sip.*client" /var/log/openhab/openhab.log`
+- The binding logs SIP registration, dialing, DTMF events, and call results
 
 ---
 
