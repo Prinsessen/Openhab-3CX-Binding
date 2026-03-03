@@ -1,7 +1,7 @@
 sitemap pbx3cx label="3CX PBX" {
     Frame label="Phone System" {
         // Live Dashboard (recommended — shows everything in one view)
-        Webview url="/static/3cx_dashboard.html" height=22
+        Webview url="/static/3cx_dashboard.html" height=70
     }
 
     Frame label="Call Status" {
