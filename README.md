@@ -182,7 +182,7 @@ Extensions can also be auto-discovered — go to **Settings → Things → 3CX P
 | Channel                | Type     | Description                                          |
 |------------------------|----------|------------------------------------------------------|
 | `callState`            | String   | Current call state: `idle`, `ringing`, `active`, `outgoing` |
-| `callerNumber`         | String   | Phone number of the current/last caller              |
+| `callerNumber`         | String   | Phone number of the current/last caller (see [Caller ID Resolution](#caller-id-resolution)) |
 | `callerName`           | String   | Display name of the current/last caller              |
 | `calledNumber`         | String   | The destination number being called                  |
 | `callDirection`        | String   | Call direction: `inbound`, `outbound`, `internal`    |
@@ -355,6 +355,52 @@ then
 end
 ```
 
+### Flash Light for Specific Caller
+
+Trigger on `PBX_Caller_Number changed` instead of `PBX_Call_State` — this catches both ringing and fast-answered calls that skip the ringing state in polling:
+
+```java
+var Timer callerFlashTimer = null
+var boolean callerFlashRed = true
+var boolean callerLightWasOff = true
+
+rule "VIP Caller Flash"
+when
+    Item PBX_Caller_Number changed
+then
+    val callerNumber = PBX_Caller_Number.state.toString
+    if (callerNumber.contains("22162460")) {  // VIP number
+        if (callerFlashTimer !== null) return;
+        callerFlashRed = true
+        callerLightWasOff = (My_Light_Color.state.toString.endsWith(",0"))
+        My_Light_Toggle.sendCommand(ON)
+        callerFlashTimer = createTimer(now, [|
+            if (callerFlashRed) {
+                My_Light_Color.sendCommand("0,100,100")    // Red
+            } else {
+                My_Light_Color.sendCommand("240,100,100")  // Blue
+            }
+            callerFlashRed = !callerFlashRed
+            callerFlashTimer.reschedule(now.plusSeconds(1))
+        ])
+    }
+end
+
+rule "VIP Caller Flash Stop"
+when
+    Item PBX_Call_State changed to "active" or
+    Item PBX_Call_State changed to "idle"
+then
+    if (callerFlashTimer !== null) {
+        callerFlashTimer.cancel
+        callerFlashTimer = null
+        if (callerLightWasOff) My_Light_Toggle.sendCommand(OFF)
+    }
+end
+```
+
+> **Why trigger on `PBX_Caller_Number changed`?** When a call is answered very quickly (before the 2-second poll catches the ringing state), the binding may detect it as already `"Talking"` (→ `active`). Triggering on caller number change ensures the rule fires for every new call regardless of answer speed. The flash stops on pickup (`active`) or call end (`idle`).
+
 ### Auto-DND After Hours
 
 ```java
@@ -514,6 +560,26 @@ end
 
 ---
 
+## Caller ID Resolution
+
+For inbound calls via SIP trunks, 3CX's `ActiveCalls` API sometimes returns only the **DID number** (the trunk's own number) instead of the real external caller number. The binding resolves this automatically:
+
+1. When a new inbound trunk call is detected, the binding queries `CallHistoryView` via OData to look up the `SrcCallerNumber` field
+2. If found, the resolved external number is used instead of the DID
+3. Falls back to extracting the number from the trunk name parentheses (e.g., `"1TEL.DK Trunk (22162460)"` → `22162460`)
+
+### Caller Number Lifecycle
+
+The `callerNumber` channel follows a specific lifecycle to ensure reliable rule triggers:
+
+- **New call detected:** Caller number is **cleared to empty** then set to the resolved number. This guarantees a `changed` event even if the same person calls twice in a row.
+- **Call ends (idle):** Caller number is cleared to empty.
+- **Binding restart:** Caller number state is reset, so the next call will always trigger rules.
+
+This design means rules using `Item PBX_Caller_Number changed` will fire reliably for every new call, regardless of polling timing or previous state.
+
+---
+
 ## Call History Persistence
 
 The binding persists call history to disk so it survives restarts:
@@ -639,10 +705,11 @@ org.openhab.binding.pbx3cx/
 │   │   ├── File-based call history persistence
 │   │   ├── SIP makeCall / alarmCall via BaresipSipClient
 │   │   └── Child handler notification for extensions/RG/queues
-│   ├── Pbx3cxApiClient.java             — REST client for 3CX xAPI (~470 lines)
+│   ├── Pbx3cxApiClient.java             — REST client for 3CX xAPI (~480 lines)
 │   │   ├── JWT authentication with 60s auto-refresh
 │   │   ├── Active calls, extensions, trunks, ring groups, queues
-│   │   └── Ring group members, queue agents
+│   │   ├── Ring group members, queue agents
+│   │   └── CallHistoryView query for real external caller ID resolution
 │   ├── BaresipSipClient.java            — Native SIP client (~500 lines)
 │   │   ├── Baresip process lifecycle management
 │   │   ├── SIP registration and call dialing
@@ -684,13 +751,16 @@ org.openhab.binding.pbx3cx/
 ### Call State Machine
 
 ```
-NEW CALL → "Routing" (ROUTER)
-         → "Ringing" (target extension ringing)
-         → "Talking" (connected)
-         → ENDED → wasAnswered?
-                      ├── YES → recentCalls list
-                      └── NO  → recentMissedCalls list + increment missedCountToday
+NEW CALL → clear callerNumber to ""
+        → set callerNumber to resolved external number
+        → "Routing" (ROUTER) / "Ringing" / "Talking"
+        → ENDED → clear callerNumber to ""
+               → wasAnswered?
+                    ├── YES → recentCalls list
+                    └── NO  → recentMissedCalls list + increment missedCountToday
 ```
+
+> **Note:** The caller number is always cleared before being set on new calls, ensuring a `changed` event fires even for consecutive calls from the same number.
 
 **Special cases:**
 - VoiceMail pickup (`"Talking"` status with VoiceMail callee) → counted as **unanswered**
